@@ -1,6 +1,9 @@
 import { useState } from 'react';
-import { Typography, Row, Col, Button, Card, InputNumber, Empty, Flex } from 'antd';
+import { Typography, Row, Col, Button, Card, InputNumber, Empty, Flex, Image, Table, Form, Input } from 'antd';
 import { DeleteOutlined, MinusOutlined, PlusOutlined } from '@ant-design/icons';
+import ButtonGroup from 'antd/es/button/button-group';
+
+const { TextArea } = Input;
 
 const Cart = () => {
     const [cartItems, setCartItems] = useState([
@@ -9,9 +12,71 @@ const Cart = () => {
             name: 'Modern Sofa',
             price: 799.99,
             quantity: 1,
+            description: 'This is a description',
+            image: 'https://product.hstatic.net/1000280685/product/mmh00286_802f4da93114489f9e12fda7ae52f7c7_large.jpg'
+        },
+        {
+            id: 1,
+            name: 'Modern Sofa',
+            price: 799.99,
+            quantity: 1,
+            description: 'This is a description',
             image: 'https://product.hstatic.net/1000280685/product/mmh00286_802f4da93114489f9e12fda7ae52f7c7_large.jpg'
         }
     ]);
+
+    const columns = [
+        {
+            title: 'Product',
+            dataIndex: 'name',
+            key: 'name',
+            render: (text, record) => (
+                <Flex gap={16} align="start" wrap="wrap">
+                    <Image src={record.image} width={100} height={100} style={{objectFit: 'cover'}} />
+                    <Flex vertical justify="start" gap={8} style={{flex: 1, minWidth: 200}}>
+                        <Typography.Text style={{fontSize: 16, fontWeight: 500}}>{text.toUpperCase()}</Typography.Text>
+                        <Typography.Text type="secondary">{record.description}</Typography.Text>
+                    </Flex>
+                </Flex>
+            ),
+            responsive: ['xs', 'sm', 'md', 'lg', 'xl']
+        },
+        {
+            title: 'Price',
+            dataIndex: 'price',
+            key: 'price',
+            render: (text, record) => (
+                <Typography.Text strong>{(record.price * 24000).toLocaleString('vi-VN')}₫</Typography.Text>
+            ),
+            responsive: ['sm', 'md', 'lg', 'xl']
+        },
+        {
+            title: 'Quantity',
+            dataIndex: 'quantity',
+            key: 'quantity',
+            render: (text, record) => (
+                <Flex gap={2} align="center">
+                    <Button icon={<MinusOutlined />} />
+                    <InputNumber 
+                        value={record.quantity}
+                        min={1}
+                        style={{width: 60}}
+                    />
+                    <Button icon={<PlusOutlined />} />
+                </Flex>
+            ),
+            responsive: ['xs', 'sm', 'md', 'lg', 'xl']
+        },
+        {
+            title: 'Total',
+            dataIndex: 'total',
+            key: 'total',
+            render: (text, record) => (
+                <Typography.Text strong>{(record.price * record.quantity * 24000).toLocaleString('vi-VN')}₫</Typography.Text>
+            ),
+            responsive: ['sm', 'md', 'lg', 'xl']
+        }
+    ];
 
     const handleQuantityChange = (id, value) => {
         setCartItems(prevItems =>
@@ -42,64 +107,40 @@ const Cart = () => {
 
     return (
         <Flex vertical gap={32}>
-            <Typography.Title level={2}>Shopping Cart</Typography.Title>
+            <Typography.Title style={{ textAlign: 'center' }} level={2}>CART</Typography.Title>
             
             <Row gutter={[32, 32]}>
-                <Col xs={24} lg={16}>
-                    {cartItems.map(item => (
-                        <Card key={item.id} style={{ marginBottom: 16 }}>
-                            <Flex gap={16} align="center">
-                                <img 
-                                    src={item.image} 
-                                    alt={item.name} 
-                                    style={{ width: 100, height: 100, objectFit: 'cover' }}
-                                />
-                                <Flex vertical flex={1} gap={8}>
-                                    <Typography.Title level={5}>{item.name}</Typography.Title>
-                                    <Typography.Text strong>${item.price}</Typography.Text>
-                                    <Flex gap={16} align="center">
-                                        <InputNumber
-                                            min={1}
-                                            value={item.quantity}
-                                            onChange={(value) => handleQuantityChange(item.id, value)}
-                                            addonBefore={<MinusOutlined />}
-                                            addonAfter={<PlusOutlined />}
-                                        />
-                                        <Button 
-                                            type="text" 
-                                            danger 
-                                            icon={<DeleteOutlined />}
-                                            onClick={() => handleRemoveItem(item.id)}
-                                        >
-                                            Remove
-                                        </Button>
-                                    </Flex>
-                                </Flex>
-                            </Flex>
-                        </Card>
-                    ))}
+                <Col xs={24} lg={24}>
+                    <Table 
+                        dataSource={cartItems}
+                        pagination={false}
+                        columns={columns}
+                        scroll={{ x: 'max-content' }}
+                        style={{ overflowX: 'auto' }}
+                    />
                 </Col>
-
-                <Col xs={24} lg={8}>
-                    <Card title="Order Summary">
+                <Col xs={24} lg={12}>
+                    <Form.Item layout='vertical' label="Order Note">
+                        <TextArea rows={4} placeholder='Enter your order note' />
+                    </Form.Item>
+                </Col>
+                    
+                <Col xs={24} lg={12}>
+                    <Flex vertical gap={16} style={{ height: '100%', justifyContent: 'space-between' }}>
                         <Flex vertical gap={16}>
                             <Flex justify="space-between">
-                                <Typography.Text>Subtotal</Typography.Text>
-                                <Typography.Text strong>${calculateTotal().toFixed(2)}</Typography.Text>
-                            </Flex>
-                            <Flex justify="space-between">
-                                <Typography.Text>Shipping</Typography.Text>
-                                <Typography.Text strong>Free</Typography.Text>
+                                <Typography.Text>Total Quantity</Typography.Text>
+                                <Typography.Text strong>{calculateTotal().toLocaleString('vi-VN')} ₫</Typography.Text>
                             </Flex>
                             <Flex justify="space-between">
                                 <Typography.Text>Total</Typography.Text>
-                                <Typography.Text strong>${calculateTotal().toFixed(2)}</Typography.Text>
+                                <Typography.Text strong>{calculateTotal().toLocaleString('vi-VN')} ₫</Typography.Text>
                             </Flex>
-                            <Button type="primary" block size="large">
-                                Proceed to Checkout
-                            </Button>
                         </Flex>
-                    </Card>
+                        <Button type="primary" block size="large">
+                            Proceed to Checkout
+                        </Button>
+                    </Flex>
                 </Col>
             </Row>
         </Flex>
