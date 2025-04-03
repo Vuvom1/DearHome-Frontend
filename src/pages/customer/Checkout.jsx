@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { Typography, Row, Col, Button, Form, Input, Radio, Card, Flex, Divider, Avatar, Select, Space } from 'antd';
-
+import { Typography, Row, Col, Button, Form, Input, Radio, Card, Flex, Divider, Avatar, Select, Space, Breadcrumb } from 'antd';
+import { URLS } from '../../constants/urls';
 const { TextArea } = Input;
 
 const Checkout = () => {
     const [paymentMethod, setPaymentMethod] = useState('cod');
+    const [shippingMethod, setShippingMethod] = useState('standard');
     
     const cartItems = [
         {
@@ -32,6 +33,10 @@ const Checkout = () => {
     return (
         <Form layout="vertical" onFinish={onFinish}>
             <Flex vertical>
+                <Breadcrumb>
+                    <Breadcrumb.Item href={URLS.CUSTOMER.HOME}>Home</Breadcrumb.Item>
+                    <Breadcrumb.Item href={URLS.CUSTOMER.CHECKOUT}>Checkout</Breadcrumb.Item>
+                </Breadcrumb>
                 <Typography.Title style={{ textAlign: 'center' }} level={2}>CHECKOUT</Typography.Title>
                 
                 <Row gutter={[32, 32]}>

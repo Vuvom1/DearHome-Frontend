@@ -1,8 +1,9 @@
-import { Typography, Card, Row, Col, Input, Select, Flex, Image } from 'antd';
+import { Typography, Card, Row, Col, Input, Select, Flex, Image, Breadcrumb } from 'antd';
 import { useState } from 'react';
 import ProductCard from '../../components/ProductCard';
 import CategoryCard from '../../components/CategoryCard';
 import ComboCard from '../../components/ComboCard';
+import { URLS } from '../../constants/urls';
 const { Title, Text } = Typography;
 const { Search } = Input;
 
@@ -87,7 +88,10 @@ const Products = () => {
 
     return (
         <Flex vertical gap={24}>
-
+            <Breadcrumb>
+                <Breadcrumb.Item href={URLS.CUSTOMER.HOME}>Home</Breadcrumb.Item>
+                <Breadcrumb.Item href={URLS.CUSTOMER.PRODUCTS}>Products</Breadcrumb.Item>
+            </Breadcrumb>
             <Row>
                 <Col xs={24} sm={24} md={16} lg={16}>
                     <Image 

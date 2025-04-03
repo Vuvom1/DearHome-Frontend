@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { Typography, Row, Col, Button, Card, InputNumber, Empty, Flex, Image, Table, Form, Input } from 'antd';
+import { Typography, Row, Col, Button, Card, InputNumber, Empty, Flex, Image, Table, Form, Input, Breadcrumb } from 'antd';
 import { DeleteOutlined, MinusOutlined, PlusOutlined } from '@ant-design/icons';
 import ButtonGroup from 'antd/es/button/button-group';
-
+import { URLS } from '../../constants/urls';
 const { TextArea } = Input;
 
 const Cart = () => {
@@ -107,6 +107,10 @@ const Cart = () => {
 
     return (
         <Flex vertical gap={32}>
+            <Breadcrumb>
+                <Breadcrumb.Item href={URLS.CUSTOMER.HOME}>Home</Breadcrumb.Item>
+                <Breadcrumb.Item href={URLS.CUSTOMER.CART}>Cart</Breadcrumb.Item>
+            </Breadcrumb>
             <Typography.Title style={{ textAlign: 'center' }} level={2}>CART</Typography.Title>
             
             <Row gutter={[32, 32]}>
