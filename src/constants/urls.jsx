@@ -15,7 +15,11 @@ export const URLS = {
         CUSTOMERS: '/admin/customers',
         CATEGORIES: '/admin/categories',
         PROFILE: '/admin/profile',
-        SETTINGS: '/admin/settings'
+        SETTINGS: '/admin/settings',
+        INVENTORY: '/admin/inventory',
+        ADD_GOOD_RECEIVED_NOTE: '/admin/inventory/add-good-received-note',
+        CUSTOMER: '/admin/customers',
+        PROMOTIONS: '/admin/promotions',
     },
 
     // Customer routes 
