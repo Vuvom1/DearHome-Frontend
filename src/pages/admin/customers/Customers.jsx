@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Table, Tag, Button, Space, Card, Typography, Dropdown, Menu, message, Modal, Descriptions, Input, Form, Popconfirm } from 'antd';
+import { Table, Tag, Button, Space, Card, Typography, Dropdown, Menu, message, Modal, Descriptions, Input, Form, Popconfirm, Switch } from 'antd';
 import { DownOutlined, EyeOutlined, EditOutlined, DeleteOutlined, PlusOutlined, ReloadOutlined, SettingOutlined, UserOutlined } from '@ant-design/icons';
 import EditCustomer from './EditCustomer';
+import { userApiRequest } from '../../../api/ApiRequests';
+import { data } from 'react-router-dom';
 const { Title } = Typography;
 
 const Customers = () => {
@@ -10,30 +12,73 @@ const Customers = () => {
   const [viewModalVisible, setViewModalVisible] = useState(false);
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState(null);
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [searchText, setSearchText] = useState('');
+  const [filteredData, setFilteredData] = useState([]);
+  const [pagination, setPagination] = useState({
+    current: 1,
+    pageSize: 10,
+    total: 0
+  });
   const [form] = Form.useForm();
+
+  const fetchCustomers = async (page = pagination.current, pageSize = pagination.pageSize) => {
+      setLoading(true);
+
+      // Calculate skip for pagination (0-based index for the API)
+      const skip = (page - 1) * pageSize;
+
+      await userApiRequest.getAllCustomers(skip, pageSize)
+        .then((response) => {
+          setCustomers(response.data.$values);
+          // Update pagination with total count if available from API response
+          setPagination({
+            ...pagination,
+            current: page,
+            pageSize: pageSize,
+            total: response.data.totalCount || response.data.$values.length
+          });
+        })
+        .catch((error) => {
+          console.error('Error fetching customers:', error);
+          message.error('Failed to fetch customers');
+        }).finally(() => {
+          setLoading(false);
+        }
+      );
+  };
 
   useEffect(() => {
     fetchCustomers();
   }, []);
 
-  const fetchCustomers = async () => {
-    // try {
-    //   setLoading(true);
-    //   // Replace with your actual API endpoint
-    //   const response = await axios.get('/api/admin/customers');
-    //   setCustomers(response.data);
-    //   setLoading(false);
-    // } catch (error) {
-    //   console.error('Error fetching customers:', error);
-    //   message.error('Failed to load customers');
-    //   setLoading(false);
-    // }
-    setLoading(true);
-    // Simulate API call
-    setTimeout(() => {
-      setLoading(false);
-    }, 500);
-  };
+  // Filter customers based on search text and status
+  useEffect(() => {
+    if (customers.length > 0) {
+      let filtered = [...customers];
+      
+      // Apply search filter if searchText is not empty
+      if (searchText) {
+        const searchLower = searchText.toLowerCase();
+        filtered = filtered.filter(customer => 
+          customer.name?.toLowerCase().includes(searchLower) ||
+          customer.email?.toLowerCase().includes(searchLower) ||
+          customer.phoneNumber?.toLowerCase().includes(searchLower)
+        );
+      }
+      
+      // Apply status filter if not 'all'
+      if (statusFilter !== 'all') {
+        filtered = filtered.filter(customer => 
+          statusFilter === 'active' ? customer.isActive === true : customer.isActive === false
+        );
+      }
+      
+      setFilteredData(filtered);
+    } else {
+      setFilteredData([]);
+    }
+  }, [customers, searchText, statusFilter]);
 
   const handleDelete = async (customerId) => {
     // try {
@@ -82,14 +127,9 @@ const Customers = () => {
 
   const columns = [
     {
-      title: 'ID',
-      dataIndex: 'id',
-      key: 'id',
-    },
-    {
       title: 'Name',
       key: 'name',
-      render: (_, record) => `${record.firstName} ${record.lastName}`,
+      dataIndex: 'name',
     },
     {
       title: 'Email',
@@ -98,26 +138,26 @@ const Customers = () => {
     },
     {
       title: 'Phone',
-      dataIndex: 'phone',
-      key: 'phone',
+      dataIndex: 'phoneNumber',
+      key: 'phoneNumber',
     },
     {
-      title: 'Status',
-      dataIndex: 'status',
-      key: 'status',
-      render: (status) => (
-        <Tag color={status === 'active' ? 'green' : 'red'}>
-          {status.toUpperCase()}
-        </Tag>
+      title: 'Is Active',
+      dataIndex: 'isActive',
+      key: 'isActive',
+      render: (isActive) => (
+        <Switch 
+          checked={isActive === true}
+          checkedChildren="Active"
+          unCheckedChildren="Inactive"
+          onChange={(checked) => {
+            // Handle status change
+            message.success(`Customer status changed to ${checked ? 'active' : 'inactive'}`);
+          }}
+        />
       ),
     },
     {
-      title: 'Orders',
-      dataIndex: 'orderCount',
-      key: 'orderCount',
-    },
-    {
-      title: 'Actions',
       key: 'actions',
       render: (_, record) => (
         <Space size="middle">
@@ -148,43 +188,6 @@ const Customers = () => {
     },
   ];
 
-  // Mock data for demonstration
-  const mockCustomers = [
-    {
-      id: 1,
-      firstName: 'John',
-      lastName: 'Doe',
-      email: 'john.doe@example.com',
-      phone: '(123) 456-7890',
-      status: 'active',
-      orderCount: 5,
-      address: '123 Main St, Anytown, CA 12345',
-      registrationDate: '2023-01-15',
-    },
-    {
-      id: 2,
-      firstName: 'Jane',
-      lastName: 'Smith',
-      email: 'jane.smith@example.com',
-      phone: '(234) 567-8901',
-      status: 'active',
-      orderCount: 3,
-      address: '456 Oak Ave, Somewhere, NY 67890',
-      registrationDate: '2023-02-20',
-    },
-    {
-      id: 3,
-      firstName: 'Robert',
-      lastName: 'Johnson',
-      email: 'robert.johnson@example.com',
-      phone: '(345) 678-9012',
-      status: 'inactive',
-      orderCount: 0,
-      address: '789 Pine Blvd, Elsewhere, TX 54321',
-      registrationDate: '2023-03-10',
-    },
-  ];
-
   return (
     <div className="customer-management">
       <Title level={2} style={{ marginBottom: 20 }}>Customer Management</Title>
@@ -201,10 +204,13 @@ const Customers = () => {
             placeholder="Search customers" 
             style={{ width: 250, marginRight: 8 }} 
             allowClear
+            value={searchText}
+            onChange={(e) => setSearchText(e.target.value)}
+            onSearch={(value) => setSearchText(value)}
           />
           <Dropdown
             overlay={
-              <Menu>
+              <Menu onClick={(e) => setStatusFilter(e.key)}>
                 <Menu.Item key="all">All Status</Menu.Item>
                 <Menu.Item key="active">Active</Menu.Item>
                 <Menu.Item key="inactive">Inactive</Menu.Item>
@@ -212,7 +218,7 @@ const Customers = () => {
             }
           >
             <Button>
-              Status Filter <DownOutlined />
+              Status Filter: {statusFilter.charAt(0).toUpperCase() + statusFilter.slice(1)} <DownOutlined />
             </Button>
           </Dropdown>
           <Button 
@@ -231,10 +237,19 @@ const Customers = () => {
       }>
         <Table 
           columns={columns} 
-          dataSource={loading ? [] : (customers.length ? customers : mockCustomers)} 
+          dataSource={filteredData} 
           rowKey="id"
           loading={loading}
-          pagination={{ pageSize: 10 }}
+          pagination={{
+            current: pagination.current,
+            pageSize: pagination.pageSize,
+            total: pagination.total,
+            showSizeChanger: true,
+            pageSizeOptions: ['10', '20', '50', '100'],
+            showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} items`,
+            onChange: (page, pageSize) => fetchCustomers(page, pageSize),
+            onShowSizeChange: (current, size) => fetchCustomers(current, size)
+          }}
         />
       </Card>
 
@@ -255,14 +270,14 @@ const Customers = () => {
             <Descriptions.Item label="Customer ID">{selectedCustomer.id}</Descriptions.Item>
             <Descriptions.Item label="Name">{`${selectedCustomer.firstName} ${selectedCustomer.lastName}`}</Descriptions.Item>
             <Descriptions.Item label="Email">{selectedCustomer.email}</Descriptions.Item>
-            <Descriptions.Item label="Phone">{selectedCustomer.phone}</Descriptions.Item>
+            <Descriptions.Item label="Phone">{selectedCustomer.phoneNumber}</Descriptions.Item>
             <Descriptions.Item label="Address">{selectedCustomer.address}</Descriptions.Item>
             <Descriptions.Item label="Registration Date">
               {new Date(selectedCustomer.registrationDate).toLocaleDateString()}
             </Descriptions.Item>
             <Descriptions.Item label="Status">
               <Tag color={selectedCustomer.status === 'active' ? 'green' : 'red'}>
-                {selectedCustomer.status.toUpperCase()}
+                {selectedCustomer.status === 'isActive' ? 'Active' : 'Inactive'}
               </Tag>
             </Descriptions.Item>
             <Descriptions.Item label="Total Orders">{selectedCustomer.orderCount}</Descriptions.Item>

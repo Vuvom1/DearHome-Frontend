@@ -1,48 +1,40 @@
-import React, { useState } from 'react';
-import { Card, Typography, Tabs, Table, Button, Space, Input, Form, Modal, Select, Tag, Flex, message } from 'antd';
-import { PlusOutlined, EditOutlined, DeleteOutlined, SearchOutlined } from '@ant-design/icons';
-
+import React, { useState, useEffect } from 'react';
+import { Card, Typography, Tabs, Table, Button, Space, Input, Form, Modal, Select, Tag, Flex, App } from 'antd';
+import { PlusOutlined, EditOutlined, DeleteOutlined, SearchOutlined, MinusCircleOutlined } from '@ant-design/icons';
+import { AttributeApiRequest } from '../../../api/ApiRequests';
+import AttributeTypes from '../../../constants/attributeTypes';
 const { Title } = Typography;
 const { TabPane } = Tabs;
 const { Option } = Select;
 
 const ProductAttribute = () => {
+  const { message } = App.useApp();
+
   const [attributeModalVisible, setAttributeModalVisible] = useState(false);
-  const [attributeValueModalVisible, setAttributeValueModalVisible] = useState(false);
   const [form] = Form.useForm();
   const [editingRecord, setEditingRecord] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [submitLoading, setSubmitLoading] = useState(false);
+  const [deleteModalVisible, setDeleteModalVisible] = useState(false);
+  const [selectedAttributeId, setSelectedAttributeId] = useState(null);
 
-  // Mock data for attributes
-  const [attributes, setAttributes] = useState([
-    { id: '1', name: 'Color', type: 'Select', required: true, categories: ['Electronics', 'Clothing'], status: 'Active' },
-    { id: '2', name: 'Size', type: 'Select', required: true, categories: ['Clothing'], status: 'Active' },
-    { id: '3', name: 'Material', type: 'Select', required: false, categories: ['Home & Kitchen', 'Clothing'], status: 'Active' },
-    { id: '4', name: 'Weight', type: 'Number', required: false, categories: ['Electronics', 'Home & Kitchen'], status: 'Active' },
-  ]);
+  // State for data
+  const [attributes, setAttributes] = useState([]);
+  const [searchText, setSearchText] = useState('');
 
-  // Mock data for attribute values
-  const [attributeValues, setAttributeValues] = useState([
-    { id: '1', attributeId: '1', value: 'Red', status: 'Active' },
-    { id: '2', attributeId: '1', value: 'Blue', status: 'Active' },
-    { id: '3', attributeId: '1', value: 'Green', status: 'Active' },
-    { id: '4', attributeId: '1', value: 'Black', status: 'Active' },
-    { id: '5', attributeId: '2', value: 'S', status: 'Active' },
-    { id: '6', attributeId: '2', value: 'M', status: 'Active' },
-    { id: '7', attributeId: '2', value: 'L', status: 'Active' },
-    { id: '8', attributeId: '2', value: 'XL', status: 'Active' },
-    { id: '9', attributeId: '3', value: 'Cotton', status: 'Active' },
-    { id: '10', attributeId: '3', value: 'Polyester', status: 'Active' },
-    { id: '11', attributeId: '3', value: 'Wood', status: 'Active' },
-    { id: '12', attributeId: '3', value: 'Metal', status: 'Active' },
-  ]);
-
-  // Mock data for categories
-  const categories = [
-    { id: '1', name: 'Electronics' },
-    { id: '2', name: 'Clothing' },
-    { id: '3', name: 'Home & Kitchen' },
-    { id: '4', name: 'Books' },
-  ];
+  // Fetch attributes
+  const fetchAttributes = async () => {
+    setLoading(true);
+    try {
+      const response = await AttributeApiRequest.getAllWithAttributeValues();
+      setAttributes(response.data.$values);
+    } catch (error) {
+      message.error('Failed to fetch attributes');
+      console.error(error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // Attribute columns
   const attributeColumns = [
@@ -57,32 +49,40 @@ const ProductAttribute = () => {
       key: 'type',
     },
     {
-      title: 'Required',
-      dataIndex: 'required',
-      key: 'required',
-      render: (required) => (required ? 'Yes' : 'No'),
-    },
-    {
-      title: 'Categories',
-      dataIndex: 'categories',
-      key: 'categories',
-      render: (categories) => (
-        <>
-          {categories.map(category => (
-            <Tag color="blue" key={category}>
-              {category}
-            </Tag>
-          ))}
-        </>
-      ),
-    },
-    {
-      title: 'Status',
-      dataIndex: 'status',
-      key: 'status',
-      render: (status) => {
-        const color = status === 'Active' ? 'green' : 'red';
-        return <Tag color={color}>{status}</Tag>;
+      title: 'Values',
+      dataIndex: 'attributeValues',
+      key: 'attributeValues',
+      render: (attributeValues, record) => {
+        if (!attributeValues || !attributeValues.$values || attributeValues.$values.length === 0) {
+          return <span>No values</span>;
+        }
+        
+        // If there are many values, show only the first few with a count
+        const maxDisplayValues = 3;
+        const totalValues = attributeValues.$values.length;
+        const displayValues = attributeValues.$values.slice(0, maxDisplayValues);
+        
+        return (
+          <Space wrap>
+            {displayValues.map(val => (
+              record.type === AttributeTypes.Color ? 
+              <Tag 
+                key={val.id} 
+                color={val.value} 
+                style={{ 
+                  color: isLightColor(val.value) ? '#000' : '#fff',
+                  border: '1px solid #d9d9d9'
+                }}
+              >
+                {val.value}
+              </Tag> :
+              <Tag key={val.id}>{val.value}</Tag>
+            ))}
+            {totalValues > maxDisplayValues && (
+              <Tag>+{totalValues - maxDisplayValues} more</Tag>
+            )}
+          </Space>
+        );
       },
     },
     {
@@ -91,68 +91,38 @@ const ProductAttribute = () => {
       render: (_, record) => (
         <Space size="small">
           <Button 
-            type="primary" 
+            variant='outlined'
             icon={<EditOutlined />} 
             size="small"
             onClick={() => handleEditAttribute(record)}
           />
           <Button 
-            type="primary" 
+            variant='outlined'
             danger 
             icon={<DeleteOutlined />} 
             size="small"
-            onClick={() => handleDeleteAttribute(record.id)}
+            onClick={() => {
+              setSelectedAttributeId(record.id);
+              setDeleteModalVisible(true);
+            }}
           />
-          <Button 
-            type="default" 
-            size="small"
-            onClick={() => handleManageValues(record)}
-          >
-            Manage Values
-          </Button>
         </Space>
       ),
     },
   ];
 
-  // Attribute value columns
-  const attributeValueColumns = [
-    {
-      title: 'Value',
-      dataIndex: 'value',
-      key: 'value',
-    },
-    {
-      title: 'Status',
-      dataIndex: 'status',
-      key: 'status',
-      render: (status) => {
-        const color = status === 'Active' ? 'green' : 'red';
-        return <Tag color={color}>{status}</Tag>;
-      },
-    },
-    {
-      title: 'Actions',
-      key: 'actions',
-      render: (_, record) => (
-        <Space size="small">
-          <Button 
-            type="primary" 
-            icon={<EditOutlined />} 
-            size="small"
-            onClick={() => handleEditAttributeValue(record)}
-          />
-          <Button 
-            type="primary" 
-            danger 
-            icon={<DeleteOutlined />} 
-            size="small"
-            onClick={() => handleDeleteAttributeValue(record.id)}
-          />
-        </Space>
-      ),
-    },
-  ];
+  // Helper function to determine if a color is light or dark
+  const isLightColor = (color) => {
+    // Convert hex to RGB
+    let hex = color.replace('#', '');
+    let r = parseInt(hex.substr(0, 2), 16);
+    let g = parseInt(hex.substr(2, 2), 16);
+    let b = parseInt(hex.substr(4, 2), 16);
+    
+    // Calculate brightness (using YIQ formula)
+    let brightness = (r * 299 + g * 587 + b * 114) / 1000;
+    return brightness > 128;
+  };
 
   // Handle add attribute
   const handleAddAttribute = () => {
@@ -164,150 +134,93 @@ const ProductAttribute = () => {
   // Handle edit attribute
   const handleEditAttribute = (record) => {
     setEditingRecord(record);
+    
+    // Convert attribute values to form field list format
+    const attributeValuesList = record.attributeValues?.$values?.map(v => ({ value: v.value })) || [];
+    
     form.setFieldsValue({
       ...record,
-      categories: record.categories,
+      attributeValuesList: attributeValuesList.length > 0 ? attributeValuesList : [{ value: '' }]
     });
+    
     setAttributeModalVisible(true);
   };
 
   // Handle delete attribute
-  const handleDeleteAttribute = (id) => {
-    Modal.confirm({
-      title: 'Are you sure you want to delete this attribute?',
-      content: 'This action cannot be undone.',
-      onOk: () => {
-        setAttributes(attributes.filter(item => item.id !== id));
-        // Also delete related attribute values
-        setAttributeValues(attributeValues.filter(item => item.attributeId !== id));
-        message.success('Attribute deleted successfully');
-      },
-    });
+  const handleDeleteAttribute = async (id) => {
+    try {
+      await AttributeApiRequest.deleteAttribute(id);
+      message.success('Attribute deleted successfully');
+      fetchAttributes(); // Refresh the list
+    } catch (error) {
+      message.error('Failed to delete attribute');
+      console.error(error);
+    }
   };
 
   // Handle attribute form submit
-  const handleAttributeSubmit = () => {
-    form.validateFields().then(values => {
+  const handleAttributeSubmit = async () => {
+    try {
+      setSubmitLoading(true);
+      const values = await form.validateFields();
+      
+      // Prepare attribute values from the list
+      let attributeData = {
+        id: values.id,
+        name: values.name,
+        type: values.type,
+      };
+      
+      if (values.attributeValuesList && values.attributeValuesList.length > 0) {
+         attributeData = {
+          ...attributeData,
+          attributeValues: values.attributeValuesList
+         }
+          
+          
+      }
+      
       if (editingRecord) {
-        setAttributes(attributes.map(item => 
-          item.id === editingRecord.id ? { ...item, ...values } : item
-        ));
+        await AttributeApiRequest.updateAttribute(attributeData);
         message.success('Attribute updated successfully');
       } else {
-        const newAttribute = {
-          id: Date.now().toString(),
-          ...values,
-        };
-        setAttributes([...attributes, newAttribute]);
+        await AttributeApiRequest.createAttribute(attributeData);
         message.success('Attribute added successfully');
       }
+      
       setAttributeModalVisible(false);
-    });
+      fetchAttributes(); // Refresh the list
+    } catch (error) {
+      if (!error.errorFields) {
+        message.error('Failed to save attribute');
+        console.error(error);
+      }
+    } finally {
+      setSubmitLoading(false);
+    }
   };
 
-  // Handle manage attribute values
-  const handleManageValues = (attribute) => {
-    setEditingRecord(attribute);
-    setAttributeValueModalVisible(true);
+  // Handle search
+  const handleSearch = (e) => {
+    setSearchText(e.target.value);
   };
 
-  // Handle add attribute value
-  const handleAddAttributeValue = () => {
-    form.resetFields();
+  // Filter attributes based on search text
+  const filteredAttributes = attributes.filter(attr => 
+    attr.name.toLowerCase().includes(searchText.toLowerCase())
+  );
+
+  // Handle type change to reset attribute values
+  const handleTypeChange = (value) => {
+    // Reset attribute values when type changes
     form.setFieldsValue({
-      attributeId: editingRecord.id,
-      status: 'Active',
-    });
-    Modal.confirm({
-      title: 'Add Attribute Value',
-      content: (
-        <Form form={form} layout="vertical">
-          <Form.Item
-            name="value"
-            label="Value"
-            rules={[{ required: true, message: 'Please enter value' }]}
-          >
-            <Input placeholder="Enter value" />
-          </Form.Item>
-          <Form.Item
-            name="status"
-            label="Status"
-            rules={[{ required: true, message: 'Please select status' }]}
-          >
-            <Select placeholder="Select status">
-              <Option value="Active">Active</Option>
-              <Option value="Inactive">Inactive</Option>
-            </Select>
-          </Form.Item>
-          <Form.Item name="attributeId" hidden>
-            <Input />
-          </Form.Item>
-        </Form>
-      ),
-      onOk: () => {
-        form.validateFields().then(values => {
-          const newValue = {
-            id: Date.now().toString(),
-            ...values,
-          };
-          setAttributeValues([...attributeValues, newValue]);
-          message.success('Attribute value added successfully');
-        });
-      },
+      attributeValuesList: [{ value: '' }]
     });
   };
 
-  // Handle edit attribute value
-  const handleEditAttributeValue = (record) => {
-    form.resetFields();
-    form.setFieldsValue({
-      ...record,
-    });
-    Modal.confirm({
-      title: 'Edit Attribute Value',
-      content: (
-        <Form form={form} layout="vertical">
-          <Form.Item
-            name="value"
-            label="Value"
-            rules={[{ required: true, message: 'Please enter value' }]}
-          >
-            <Input placeholder="Enter value" />
-          </Form.Item>
-          <Form.Item
-            name="status"
-            label="Status"
-            rules={[{ required: true, message: 'Please select status' }]}
-          >
-            <Select placeholder="Select status">
-              <Option value="Active">Active</Option>
-              <Option value="Inactive">Inactive</Option>
-            </Select>
-          </Form.Item>
-        </Form>
-      ),
-      onOk: () => {
-        form.validateFields().then(values => {
-          setAttributeValues(attributeValues.map(item => 
-            item.id === record.id ? { ...item, ...values } : item
-          ));
-          message.success('Attribute value updated successfully');
-        });
-      },
-    });
-  };
-
-  // Handle delete attribute value
-  const handleDeleteAttributeValue = (id) => {
-    Modal.confirm({
-      title: 'Are you sure you want to delete this attribute value?',
-      content: 'This action cannot be undone.',
-      onOk: () => {
-        setAttributeValues(attributeValues.filter(item => item.id !== id));
-        message.success('Attribute value deleted successfully');
-      },
-    });
-  };
+  useEffect(() => {
+    fetchAttributes();
+  }, []);
 
   return (
     <div>
@@ -321,6 +234,8 @@ const ProductAttribute = () => {
             placeholder="Search attributes" 
             prefix={<SearchOutlined />} 
             style={{ width: 300 }}
+            value={searchText}
+            onChange={handleSearch}
           />
           <Button 
             type="primary" 
@@ -332,9 +247,10 @@ const ProductAttribute = () => {
         </Flex>
         <Table 
           columns={attributeColumns} 
-          dataSource={attributes} 
+          dataSource={filteredAttributes} 
           pagination={{ pageSize: 10 }}
           rowKey="id"
+          loading={loading}
         />
       </Card>
 
@@ -344,12 +260,19 @@ const ProductAttribute = () => {
         open={attributeModalVisible}
         onCancel={() => setAttributeModalVisible(false)}
         onOk={handleAttributeSubmit}
+        confirmLoading={submitLoading}
         destroyOnClose
       >
         <Form
           form={form}
           layout="vertical"
         >
+          <Form.Item
+            name="id"
+            label="Attribute ID"
+            hidden
+          >
+          </Form.Item>
           <Form.Item
             name="name"
             label="Attribute Name"
@@ -362,77 +285,92 @@ const ProductAttribute = () => {
             label="Type"
             rules={[{ required: true, message: 'Please select type' }]}
           >
-            <Select placeholder="Select type">
-              <Option value="Text">Text</Option>
-              <Option value="Number">Number</Option>
-              <Option value="Select">Select</Option>
-              <Option value="Boolean">Boolean</Option>
-            </Select>
-          </Form.Item>
-          <Form.Item
-            name="required"
-            label="Required"
-            valuePropName="checked"
-          >
-            <Select placeholder="Select if required">
-              <Option value={true}>Yes</Option>
-              <Option value={false}>No</Option>
-            </Select>
-          </Form.Item>
-          <Form.Item
-            name="categories"
-            label="Categories"
-            rules={[{ required: true, message: 'Please select at least one category' }]}
-          >
             <Select 
-              mode="multiple" 
-              placeholder="Select categories"
-              optionFilterProp="children"
+              placeholder="Select type"
+              onChange={handleTypeChange}
             >
-              {categories.map(category => (
-                <Option key={category.id} value={category.name}>{category.name}</Option>
+              {Object.values(AttributeTypes).map(type => (
+                <Option key={type} value={type}>{type}</Option>
               ))}
             </Select>
           </Form.Item>
-          <Form.Item
-            name="status"
-            label="Status"
-            rules={[{ required: true, message: 'Please select status' }]}
-          >
-            <Select placeholder="Select status">
-              <Option value="Active">Active</Option>
-              <Option value="Inactive">Inactive</Option>
-            </Select>
-          </Form.Item>
+          
+          <Form.List name="attributeValuesList" initialValue={[{ value: '' }]}>
+            {(fields, { add, remove }) => (
+              <>
+                <Form.Item label="Attribute Values">
+                  {fields.map((field, index) => (
+                    <Flex key={field.key} align="center" style={{ marginBottom: 8 }}>
+                      <Form.Item
+                        {...field}
+                        name={[field.name, 'value']}
+                        noStyle
+                        rules={[
+                          { 
+                            required: form.getFieldValue('type') === AttributeTypes.Select || 
+                                      form.getFieldValue('type') === AttributeTypes.MultiSelect || 
+                                      form.getFieldValue('type') === AttributeTypes.Color, 
+                            message: 'Please enter a value',
+                            validator: (_, value) => {
+                              // For color inputs, the default value '#000000' should be considered valid
+                              if (form.getFieldValue('type') === AttributeTypes.Color && value) {
+                                return Promise.resolve();
+                              }
+                              
+                              // For other types that require values
+                              if ((form.getFieldValue('type') === AttributeTypes.Select || 
+                                  form.getFieldValue('type') === AttributeTypes.MultiSelect) && 
+                                  (!value || value.trim() === '')) {
+                                return Promise.reject('Please enter a value');
+                              }
+                              
+                              return Promise.resolve();
+                            }
+                          }
+                        ]}
+                      >
+                        {form.getFieldValue('type') === AttributeTypes.Color ? (
+                          <Input 
+                            type="color" 
+                            placeholder="Select color" 
+                            style={{ width: '100%', height: '32px', padding: '0 5px' }} 
+                            defaultValue="#000000"
+                          />
+                        ) : (
+                          <Input placeholder="Enter attribute value" style={{ width: '100%' }} />
+                        )}
+                      </Form.Item>
+                      {fields.length > 1 && (
+                        <MinusCircleOutlined
+                          style={{ marginLeft: 8 }}
+                          onClick={() => remove(field.name)}
+                        />
+                      )}
+                    </Flex>
+                  ))}
+                </Form.Item>
+                <Form.Item>
+                  <Button
+                    type="dashed"
+                    onClick={() => add()}
+                    icon={<PlusOutlined />}
+                    style={{ width: '100%' }}
+                  >
+                    Add Value
+                  </Button>
+                </Form.Item>
+              </>
+            )}
+          </Form.List>
         </Form>
       </Modal>
-
-      {/* Attribute Values Modal */}
       <Modal
-        title={`Manage Values for ${editingRecord?.name || ''}`}
-        open={attributeValueModalVisible}
-        onCancel={() => setAttributeValueModalVisible(false)}
-        footer={[
-          <Button key="back" onClick={() => setAttributeValueModalVisible(false)}>
-            Close
-          </Button>,
-          <Button 
-            key="add" 
-            type="primary" 
-            icon={<PlusOutlined />}
-            onClick={handleAddAttributeValue}
-          >
-            Add Value
-          </Button>
-        ]}
-        width={700}
-      >
-        <Table 
-          columns={attributeValueColumns} 
-          dataSource={attributeValues.filter(item => item.attributeId === editingRecord?.id)} 
-          pagination={{ pageSize: 5 }}
-          rowKey="id"
-        />
+        title="Delete Attribute"
+        open={deleteModalVisible}
+        onCancel={() => setDeleteModalVisible(false)}
+        onOk={() => handleDeleteAttribute(selectedAttributeId)}
+      > 
+        <p>Are you sure you want to delete this attribute?</p>
       </Modal>
     </div>
   );

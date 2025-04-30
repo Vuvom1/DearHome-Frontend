@@ -3,11 +3,12 @@ import Login from './Login';
 import { Typography, Row, Col, Image, Flex, Tabs } from 'antd';
 import logo from '../../assets/images/logo.png';
 import Signup from './Signup';
-
+import { useState } from 'react';
 const { Title } = Typography;
 
 const Auth = () => {
     const navigate = useNavigate();
+    const [activeTab, setActiveTab] = useState('login');
 
     const onFinish = (values) => {
         console.log('Received values:', values);
@@ -19,7 +20,7 @@ const Auth = () => {
             style={{
                 minHeight: '100vh',
                 padding: '20px',
-                paddingTop: '80px'
+                alignItems: 'center',
             }}
         >
             <Col xs={0} md={0} lg={12} xl={12} xxl={12}>
@@ -31,8 +32,8 @@ const Auth = () => {
                         src="https://firebasestorage.googleapis.com/v0/b/makemyhome-27df4.appspot.com/o/Backgrounds%2FtempImagemoS0cL%201.png?alt=media&token=52c0c12b-6317-46bb-9c3a-1fa34c607321"
                     />
                     <Image
-                        width={300}
-                        height={300}
+                        width={400}
+                        height={400}
                         preview={false}
                         src="https://firebasestorage.googleapis.com/v0/b/makemyhome-27df4.appspot.com/o/Backgrounds%2FtempImagerHIP4d%201.png?alt=media&token=3fbe0e6c-4d4f-4780-95cb-4b09d930cee2"
                         style={{
@@ -60,17 +61,19 @@ const Auth = () => {
                     <Tabs
                         items={[
                             {
-                                label: 'Login',
+                                label: 'LOGIN',
                                 key: 'login',
                                 children: <Login />
                             },
                             {
-                                label: 'Signup',
+                                label: 'SIGNUP',
                                 key: 'signup',
-                                children: <Signup />
+                                children: <Signup onSuccess={() => setActiveTab('login')} />
                             }
                         ]}
                         defaultActiveKey="login"
+                        activeKey={activeTab}
+                        onChange={(key) => setActiveTab(key)}
                     />
                 </Flex>
             </Col>

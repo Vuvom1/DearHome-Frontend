@@ -1,16 +1,54 @@
 import { Form, Input, Button, Card, Typography, Row, Col, Image, Flex, Checkbox } from 'antd';
-import { UserOutlined, LockOutlined, GoogleOutlined, MailOutlined, KeyOutlined } from '@ant-design/icons';
+import { UserOutlined, LockOutlined, GoogleOutlined, MailOutlined, KeyOutlined, PhoneOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import Link from 'antd/es/typography/Link';
-
+import { useDispatch } from 'react-redux';
+import { registerUser } from '../../store/actions/AuthAction';
+import { App } from 'antd';
+import apiInstance from '../../api/ApiInstance';
+import { authApiRequest } from '../../api/ApiRequests';
+import { useState } from 'react';
 const { Title } = Typography;
 
-const Signup = () => {
+const Signup = ({ onSuccess }) => {
     const navigate = useNavigate();
+    const dispatch = useDispatch();
+    const { message } = App.useApp();
+    const [form] = Form.useForm();
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isSendingCode, setIsSendingCode] = useState(false);
+    
 
-    const onFinish = (values) => {
-        console.log('Received values:', values);
-        // Add your signup logic here
+    const onFinish = async (values) => {
+        setIsSubmitting(true);
+        try {
+            const result = await dispatch(registerUser(values)).unwrap();
+            message.success('Signup successful!');
+            console.log(result);    
+            onSuccess();
+        } catch (error) {
+            message.error(error.message || 'Signup failed. Please try again.');
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
+    const handleSendVerificationCode = async (email) => {
+        if (!email) {
+            message.error('Please enter your email first');
+            return;
+        }
+        
+        setIsSendingCode(true);
+        try {
+            await authApiRequest.sendVerificationCode(email);
+            message.success('Verification code sent successfully!');
+        } catch (error) {
+            message.error(error.message || 'Failed to send verification code. Please try again.');
+            console.log(error);
+        } finally {
+            setIsSendingCode(false);
+        }
     };
 
     return (
@@ -19,7 +57,18 @@ const Signup = () => {
             initialValues={{ remember: true }}
             onFinish={onFinish}
             layout="vertical"
+            form={form}
         >
+            <Form.Item  
+                name="name"
+                rules={[{ required: true, message: 'Please input your Name!' }]}
+            >
+                <Input
+                    prefix={<UserOutlined />}
+                    placeholder="Name"
+                    size="large"
+                />
+            </Form.Item>
             <Form.Item
                 name="email"
                 rules={[
@@ -35,7 +84,18 @@ const Signup = () => {
             </Form.Item>
 
             <Form.Item
-                name="username"
+                name="phoneNumber"
+                rules={[{ required: true, message: 'Please input your Phone Number!' }]}
+            >
+                <Input
+                    prefix={<PhoneOutlined />}
+                    placeholder="Phone Number"
+                    size="large"
+                />
+            </Form.Item>
+
+            <Form.Item
+                name="userName"
                 rules={[{ required: true, message: 'Please input your Username!' }]}
             >
                 <Input
@@ -91,7 +151,12 @@ const Signup = () => {
                         placeholder="Verification Code"
                         size="large"
                     />
-                    <Button size="large">
+                    <Button 
+                        onClick={()=>handleSendVerificationCode(form.getFieldValue('email'))} 
+                        size="large"
+                        loading={isSendingCode}
+                        disabled={isSendingCode}
+                    >
                         Get Code
                     </Button>
                 </Flex>
@@ -108,7 +173,7 @@ const Signup = () => {
             </Form.Item>
 
             <Form.Item>
-                <Button type="primary" htmlType="submit" block size="large">
+                <Button type="primary" htmlType="submit" block size="large" loading={isSubmitting} disabled={isSubmitting}>
                     Sign Up
                 </Button>
             </Form.Item>
@@ -117,7 +182,7 @@ const Signup = () => {
                 <Typography.Text style={{ textAlign: 'center' }}>
                     or Sign up with
                 </Typography.Text>
-                <Button variant='outlined' htmlType="submit" block size="large">
+                <Button variant='outlined' htmlType="submit" block size="large" disabled={isSubmitting}>
                     <GoogleOutlined /> Google
                 </Button>
             </Flex>

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Table, Tag, Button, Space, Card, Typography, Dropdown, Menu, message, Modal, Descriptions, Badge, Input } from 'antd';
-import { DownOutlined, EyeOutlined, CheckOutlined, CloseOutlined, PrinterOutlined, PlusOutlined, ReloadOutlined, SettingOutlined   } from '@ant-design/icons';
+import { Table, Tag, Button, Space, Card, Typography, Dropdown, Menu, message, Modal, Descriptions, Badge, Input, Image } from 'antd';
+import { DownOutlined, EyeOutlined, CheckOutlined, CloseOutlined, PrinterOutlined, PlusOutlined, ReloadOutlined, SettingOutlined } from '@ant-design/icons';
+import { orderApiRequest } from '../../../api/ApiRequests';
 
 const { Title } = Typography;
 
@@ -9,39 +10,45 @@ const Order = () => {
   const [loading, setLoading] = useState(false);
   const [viewModalVisible, setViewModalVisible] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState(null);
+  const [offSet, setOffSet] = useState(0);
+  const [limit, setLimit] = useState(10);
+  const [total, setTotal] = useState(0);
 
   useEffect(() => {
     fetchOrders();
-  }, []);
+  }, [offSet, limit]);
 
   const fetchOrders = async () => {
-    // try {
-    //   setLoading(true);
-    //   // Replace with your actual API endpoint
-    //   const response = await axios.get('/api/admin/orders');
-    //   setOrders(response.data);
-    //   setLoading(false);
-    // } catch (error) {
-    //   console.error('Error fetching orders:', error);
-    //   message.error('Failed to load orders');
-    //   setLoading(false);
-    // }
+    setLoading(true);
+    await orderApiRequest.getAllOrders(offSet, limit)
+      .then((response) => {
+        setOrders(response.data.$values);
+        // Assuming the API returns total count somewhere, adjust as needed
+        setTotal(response.data.$values.length > 0 ? response.data.$values.length : 0);
+      })
+      .catch((error) => {
+        console.error('Error fetching orders:', error);
+        message.error('Failed to fetch orders');
+      }).finally(() => {
+        setLoading(false);
+      });
   };
 
   const handleStatusChange = async (orderId, newStatus) => {
-    // try {
-    //   // Replace with your actual API endpoint
-    //   await axios.put(`/api/admin/orders/${orderId}/status`, { status: newStatus });
-    //   message.success(`Order status updated to ${newStatus}`);
-    //   fetchOrders();
-    // } catch (error) {
-    //   console.error('Error updating order status:', error);
-    //   message.error('Failed to update order status');
-    // }
+    try {
+      await orderApiRequest.updateOrderStatus(orderId, newStatus);
+
+      message.success(`Order status updated to ${newStatus}`);
+      fetchOrders();
+    } catch (error) {
+      console.error('Error updating order status:', error);
+      message.error('Failed to update order status');
+    }
   };
 
   const viewOrderDetails = (order) => {
     setSelectedOrder(order);
+    console.log('Selected Order:', order);
     setViewModalVisible(true);
   };
 
@@ -52,8 +59,10 @@ const Order = () => {
 
   const getStatusColor = (status) => {
     switch (status.toLowerCase()) {
-      case 'pending':
+      case 'waitforpayment':
         return 'gold';
+      case 'paid':
+        return 'purple';
       case 'processing':
         return 'blue';
       case 'shipped':
@@ -67,18 +76,22 @@ const Order = () => {
     }
   };
 
+  const getFormattedStatus = (status) => {
+    return status.replace(/([A-Z])/g, ' $1').trim();
+  };
+
   const columns = [
     {
       title: 'Order ID',
       dataIndex: 'id',
       key: 'id',
-      render: (id) => <a>#{id}</a>,
+      render: (id) => <a>#{id?.substring(0, 8)}...</a>,
     },
     {
       title: 'Customer',
-      dataIndex: 'customer',
-      key: 'customer',
-      render: (customer) => `${customer.firstName} ${customer.lastName}`,
+      dataIndex: 'user',
+      key: 'user',
+      render: (user) => user?.name || '',
     },
     {
       title: 'Date',
@@ -88,9 +101,11 @@ const Order = () => {
     },
     {
       title: 'Total',
-      dataIndex: 'total',
-      key: 'total',
-      render: (total) => `$${total.toFixed(2)}`,
+      dataIndex: 'finalPrice',
+      key: 'finalPrice',
+      render: (finalPrice) => (
+        <span>{(finalPrice).toLocaleString('vi-VN')} ₫</span>
+      ),
     },
     {
       title: 'Status',
@@ -98,7 +113,7 @@ const Order = () => {
       key: 'status',
       render: (status) => (
         <Tag color={getStatusColor(status)}>
-          {status.toUpperCase()}
+          {getFormattedStatus(status).toUpperCase()}
         </Tag>
       ),
     },
@@ -107,46 +122,46 @@ const Order = () => {
       key: 'actions',
       render: (_, record) => (
         <Space size="middle">
-          <Button 
-            icon={<EyeOutlined />} 
+          <Button
+            icon={<EyeOutlined />}
             onClick={() => viewOrderDetails(record)}
             type="text"
           />
           <Dropdown
             overlay={
               <Menu>
-                <Menu.Item 
-                  key="1" 
+                <Menu.Item
+                  key="1"
                   icon={<CheckOutlined />}
-                  onClick={() => handleStatusChange(record.id, 'processing')}
+                  onClick={() => handleStatusChange(record.id, 'Processing')}
                 >
                   Mark as Processing
                 </Menu.Item>
-                <Menu.Item 
-                  key="2" 
+                <Menu.Item
+                  key="2"
                   icon={<CheckOutlined />}
-                  onClick={() => handleStatusChange(record.id, 'shipped')}
+                  onClick={() => handleStatusChange(record.id, 'Shipped')}
                 >
                   Mark as Shipped
                 </Menu.Item>
-                <Menu.Item 
-                  key="3" 
+                <Menu.Item
+                  key="3"
                   icon={<CheckOutlined />}
-                  onClick={() => handleStatusChange(record.id, 'delivered')}
+                  onClick={() => handleStatusChange(record.id, 'Delivered')}
                 >
                   Mark as Delivered
                 </Menu.Item>
-                <Menu.Item 
-                  key="4" 
+                <Menu.Item
+                  key="4"
                   icon={<CloseOutlined />}
-                  onClick={() => handleStatusChange(record.id, 'cancelled')}
+                  onClick={() => handleStatusChange(record.id, 'Cancelled')}
                   danger
                 >
                   Cancel Order
                 </Menu.Item>
                 <Menu.Divider />
-                <Menu.Item 
-                  key="5" 
+                <Menu.Item
+                  key="5"
                   icon={<PrinterOutlined />}
                   onClick={() => printOrder(record.id)}
                 >
@@ -164,88 +179,32 @@ const Order = () => {
     },
   ];
 
-  // Mock data for development - remove in production
-  const mockOrders = [
-    {
-      id: '1001',
-      customer: { firstName: 'John', lastName: 'Doe' },
-      orderDate: '2023-05-15T10:30:00',
-      total: 129.99,
-      status: 'pending',
-      items: [
-        { id: 1, name: 'Product A', quantity: 2, price: 49.99 },
-        { id: 2, name: 'Product B', quantity: 1, price: 30.01 },
-      ],
-      shippingAddress: {
-        street: '123 Main St',
-        city: 'Anytown',
-        state: 'CA',
-        zip: '12345',
-        country: 'USA',
-      },
-      paymentMethod: 'Credit Card',
-    },
-    {
-      id: '1002',
-      customer: { firstName: 'Jane', lastName: 'Smith' },
-      orderDate: '2023-05-14T14:45:00',
-      total: 89.95,
-      status: 'processing',
-      items: [
-        { id: 3, name: 'Product C', quantity: 1, price: 89.95 },
-      ],
-      shippingAddress: {
-        street: '456 Oak Ave',
-        city: 'Somewhere',
-        state: 'NY',
-        zip: '67890',
-        country: 'USA',
-      },
-      paymentMethod: 'PayPal',
-    },
-    {
-      id: '1003',
-      customer: { firstName: 'Robert', lastName: 'Johnson' },
-      orderDate: '2023-05-13T09:15:00',
-      total: 245.50,
-      status: 'shipped',
-      items: [
-        { id: 4, name: 'Product D', quantity: 3, price: 45.50 },
-        { id: 5, name: 'Product E', quantity: 2, price: 54.50 },
-      ],
-      shippingAddress: {
-        street: '789 Pine Blvd',
-        city: 'Elsewhere',
-        state: 'TX',
-        zip: '54321',
-        country: 'USA',
-      },
-      paymentMethod: 'Credit Card',
-    },
-  ];
+  const handleTableChange = (pagination) => {
+    setOffSet((pagination.current - 1) * limit);
+  };
 
   return (
     <div className="order-management">
-        <Title level={2} style={{ marginBottom: 20 }}>Order Management</Title>
+      <Title level={2} style={{ marginBottom: 20 }}>Order Management</Title>
       <Card extra={
         <Space>
-          <Button 
-            type="primary" 
-            icon={<PlusOutlined />} 
+          <Button
+            type="primary"
+            icon={<PlusOutlined />}
             style={{ marginRight: 8 }}
           >
             Add Order
           </Button>
-          <Input.Search 
-            placeholder="Search orders" 
-            style={{ width: 250, marginRight: 8 }} 
+          <Input.Search
+            placeholder="Search orders"
+            style={{ width: 250, marginRight: 8 }}
             allowClear
           />
           <Dropdown
             overlay={
               <Menu>
                 <Menu.Item key="all">All Status</Menu.Item>
-                <Menu.Item key="pending">Pending</Menu.Item>
+                <Menu.Item key="waitforpayment">Wait for Payment</Menu.Item>
                 <Menu.Item key="processing">Processing</Menu.Item>
                 <Menu.Item key="shipped">Shipped</Menu.Item>
                 <Menu.Item key="delivered">Delivered</Menu.Item>
@@ -257,38 +216,42 @@ const Order = () => {
               Status Filter <DownOutlined />
             </Button>
           </Dropdown>
-          <Button 
-            icon={<ReloadOutlined />} 
+          <Button
+            icon={<ReloadOutlined />}
             style={{ marginLeft: 8 }}
             onClick={() => fetchOrders()}
           >
           </Button>
-          <Button 
-            icon={<PrinterOutlined />} 
+          <Button
+            icon={<PrinterOutlined />}
             style={{ marginLeft: 8 }}
             onClick={() => message.info('Exporting orders...')}
           >
           </Button>
-          <Button 
-            icon={<SettingOutlined />} 
+          <Button
+            icon={<SettingOutlined />}
             style={{ marginLeft: 8 }}
             onClick={() => message.info('Settings opened')}
           >
           </Button>
         </Space>
-        }>
-        <Table 
-         
-          columns={columns} 
-          dataSource={loading ? [] : (orders.length ? orders : mockOrders)} 
+      }>
+        <Table
+          columns={columns}
+          dataSource={orders}
           rowKey="id"
           loading={loading}
-          pagination={{ pageSize: 10 }}
+          pagination={{
+            pageSize: limit,
+            total: total,
+            onChange: (page) => setOffSet((page - 1) * limit),
+          }}
+          onChange={handleTableChange}
         />
       </Card>
 
       <Modal
-        title={`Order Details #${selectedOrder?.id || ''}`}
+        title={`Order Details #${selectedOrder?.id ? selectedOrder.id : ''}`}
         open={viewModalVisible}
         onCancel={() => setViewModalVisible(false)}
         footer={[
@@ -305,15 +268,15 @@ const Order = () => {
           <>
             <Descriptions bordered column={2}>
               <Descriptions.Item label="Order Status" span={2}>
-                <Badge 
-                  status={getStatusColor(selectedOrder.status) === 'gold' ? 'warning' : 
-                         getStatusColor(selectedOrder.status) === 'green' ? 'success' : 
-                         getStatusColor(selectedOrder.status) === 'red' ? 'error' : 'processing'} 
-                  text={selectedOrder.status.toUpperCase()} 
+                <Badge
+                  status={getStatusColor(selectedOrder.status) === 'gold' ? 'warning' :
+                    getStatusColor(selectedOrder.status) === 'green' ? 'success' :
+                      getStatusColor(selectedOrder.status) === 'red' ? 'error' : 'processing'}
+                  text={getFormattedStatus(selectedOrder.status)}
                 />
               </Descriptions.Item>
               <Descriptions.Item label="Customer Name">
-                {`${selectedOrder.customer.firstName} ${selectedOrder.customer.lastName}`}
+                {selectedOrder.user.name}
               </Descriptions.Item>
               <Descriptions.Item label="Order Date">
                 {new Date(selectedOrder.orderDate).toLocaleString()}
@@ -322,39 +285,58 @@ const Order = () => {
                 {selectedOrder.paymentMethod}
               </Descriptions.Item>
               <Descriptions.Item label="Total Amount">
-                ${selectedOrder.total.toFixed(2)}
+                {(selectedOrder.finalPrice).toLocaleString('vi-VN')} VND
               </Descriptions.Item>
             </Descriptions>
 
             <Title level={4} style={{ marginTop: 20 }}>Shipping Address</Title>
             <Descriptions bordered>
               <Descriptions.Item label="Address" span={3}>
-                {selectedOrder.shippingAddress.street}
+                {selectedOrder.address.street}
               </Descriptions.Item>
               <Descriptions.Item label="City">
-                {selectedOrder.shippingAddress.city}
+                {selectedOrder.address.city}
               </Descriptions.Item>
-              <Descriptions.Item label="State">
-                {selectedOrder.shippingAddress.state}
+              <Descriptions.Item label="District">
+                {selectedOrder.address.district}
               </Descriptions.Item>
-              <Descriptions.Item label="Zip Code">
-                {selectedOrder.shippingAddress.zip}
+              <Descriptions.Item label="Postal Code">
+                {selectedOrder.address.postalCode}
               </Descriptions.Item>
               <Descriptions.Item label="Country" span={3}>
-                {selectedOrder.shippingAddress.country}
+                {selectedOrder.address.country}
               </Descriptions.Item>
             </Descriptions>
 
             <Title level={4} style={{ marginTop: 20 }}>Order Items</Title>
-            <Table 
-              dataSource={selectedOrder.items}
-              rowKey="id"
+            <Table
+              dataSource={selectedOrder.orderDetails.$values}
+              rowKey="variantId"
               pagination={false}
               columns={[
                 {
-                  title: 'Product',
-                  dataIndex: 'name',
-                  key: 'name',
+
+                  dataIndex: ['variant', 'imageUrls', '$values'],
+                  key: 'imageUrls',
+                  render: (imageUrls) => (
+                    <Image
+                      width={50}
+                      height={50}
+                      src={imageUrls[0]}
+                      alt="Product Image"
+                      style={{ borderRadius: '5px' }}
+                    />
+                  ),
+                },
+                {
+                  title: 'Product Name',
+                  dataIndex: ['variant', 'product', 'name'],
+                  key: 'productName',
+                },
+                {
+                  title: 'SKU',
+                  dataIndex: ['variant', 'sku'],
+                  key: 'sku',
                 },
                 {
                   title: 'Quantity',
@@ -363,23 +345,24 @@ const Order = () => {
                 },
                 {
                   title: 'Price',
-                  dataIndex: 'price',
-                  key: 'price',
-                  render: (price) => `$${price.toFixed(2)}`,
+                  dataIndex: 'unitPrice',
+                  key: 'unitPrice',
+                  render: (price) => `${(price).toLocaleString('vi-VN')} VND`,
                 },
                 {
                   title: 'Subtotal',
-                  key: 'subtotal',
-                  render: (_, record) => `$${(record.price * record.quantity).toFixed(2)}`,
+                  key: 'totalPrice',
+                  dataIndex: 'totalPrice',
+                  render: (totalPrice) => `${totalPrice?.toLocaleString('vi-VN')} VND`,
                 },
               ]}
               summary={(pageData) => {
-                const total = pageData.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+                const total = pageData.reduce((sum, item) => sum + item.totalPrice, 0);
                 return (
                   <Table.Summary.Row>
                     <Table.Summary.Cell index={0} colSpan={3}>Total</Table.Summary.Cell>
-                    <Table.Summary.Cell index={1}>
-                      <strong>${total.toFixed(2)}</strong>
+                    <Table.Summary.Cell index={1} justifyContent='flex-end'>
+                      <strong>{(total).toLocaleString('vi-VN')} VND</strong>
                     </Table.Summary.Cell>
                   </Table.Summary.Row>
                 );

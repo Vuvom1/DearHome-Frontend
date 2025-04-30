@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     Form,
     Input,
@@ -11,7 +11,8 @@ import {
     Table,
     Space,
     Flex,
-    Divider
+    Divider,
+    message
 } from 'antd';
 import {
     PlusOutlined,
@@ -20,6 +21,8 @@ import {
     SaveOutlined
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
+import { URLS } from '../../../constants/urls';
+import { goodReceivedNoteApiRequest, VariantApiRequest } from '../../../api/ApiRequests';
 
 const { Title } = Typography;
 const { Option } = Select;
@@ -29,24 +32,23 @@ const AddGoodReceivedNote = () => {
     const [form] = Form.useForm();
     const navigate = useNavigate();
     const [items, setItems] = useState([]);
+    const [loading, setLoading] = useState(false);
+    const [variants, setVariants] = useState([]);
 
-    // Mock data for suppliers and products
-    const suppliers = [
-        { id: '1', name: 'Supplier A' },
-        { id: '2', name: 'Supplier B' },
-        { id: '3', name: 'Supplier C' },
-    ];
+    const fetchVariants = async () => {
+        const response = await VariantApiRequest.getAllVariants();
+        setVariants(response.data.$values);
+    }
 
-    const products = [
-        { id: '1', name: 'Product A', sku: 'SKU001' },
-        { id: '2', name: 'Product B', sku: 'SKU002' },
-        { id: '3', name: 'Product C', sku: 'SKU003' },
-    ];
+    // Fetch products
+    useEffect(() => {
+        fetchVariants();
+    }, []);
 
     const addItem = () => {
         const newItem = {
             key: Date.now(),
-            product: null,
+            variantId: null,
             quantity: 1,
             unitCost: 0,
             totalCost: 0,
@@ -78,35 +80,62 @@ const AddGoodReceivedNote = () => {
         return items.reduce((sum, item) => sum + (item.totalCost || 0), 0);
     };
 
-    const handleSubmit = (values) => {
-        const grnData = {
-            ...values,
-            items: items,
-            totalCost: calculateTotalCost(),
-        };
+    const handleSubmit = async (values) => {
+        try {
+            setLoading(true);
+            
+            // Format the items for the API
+            const goodReceivedItems = items.map(item => ({
+                variantId: item.variantId,
+                quantity: item.quantity,
+                unitCost: item.unitCost
+            }));
+            
+            // Prepare the payload
+            const payload = {
+                receivedDate: values.date.toISOString(),
+                note: values.note || "",
+                shippingCost: values.shippingCost || 0,
+                status: "Received",
+                goodReceivedItems: goodReceivedItems
+            };
 
-        console.log('GRN Data:', grnData);
-        // Here you would typically send the data to your backend
-
-        // Navigate back to inventory page
-        navigate('/admin/inventory');
+            console.log(payload);
+            
+            // Make the API call
+            const response = await goodReceivedNoteApiRequest.createGoodReceivedNote(payload);
+            
+            message.success('Goods Received Note created successfully');
+            
+            // Navigate back to inventory page
+            navigate(URLS.ADMIN.INVENTORY);
+        } catch (error) {
+            console.error('Error creating GRN:', error);
+            message.error('Failed to create Goods Received Note');
+        } finally {
+            setLoading(false);
+        }
     };
 
     const columns = [
         {
             title: 'Product',
-            dataIndex: 'product',
-            key: 'product',
+            dataIndex: 'variantId',
+            key: 'variantId',
             render: (_, record) => (
                 <Select
                     style={{ width: '100%' }}
                     placeholder="Select a product"
-                    value={record.product}
-                    onChange={(value) => updateItem(record.key, 'product', value)}
+                    value={record.variantId}
+                    onChange={(value) => updateItem(record.key, 'variantId', value)}
+                    showSearch
+                    filterOption={(input, option) =>
+                        (option?.children ?? '').toLowerCase().includes(input.toLowerCase())
+                    }
                 >
-                    {products.map(product => (
-                        <Option key={product.id} value={product.id}>
-                            {product.name} ({product.sku})
+                    {variants.map(variant => (
+                        <Option key={variant.id} value={variant.id}>
+                            {variant.name} ({variant.sku})
                         </Option>
                     ))}
                 </Select>
@@ -175,7 +204,8 @@ const AddGoodReceivedNote = () => {
                     <Button
                         type="primary"
                         icon={<SaveOutlined />}
-                        htmlType="submit"
+                        onClick={() => form.submit()}
+                        loading={loading}
                     >
                         Save GRN
                     </Button>
@@ -192,15 +222,6 @@ const AddGoodReceivedNote = () => {
                     style={{ marginBottom: 16 }}>
                     <Flex gap={16} wrap="wrap">
                         <Form.Item
-                            name="grnNumber"
-                            label="GRN Number"
-                            rules={[{ required: true, message: 'Please input GRN number!' }]}
-                            style={{ flex: 1, minWidth: '250px' }}
-                        >
-                            <Input placeholder="GRN-001" />
-                        </Form.Item>
-
-                        <Form.Item
                             name="date"
                             label="Date Received"
                             rules={[{ required: true, message: 'Please select date!' }]}
@@ -210,21 +231,21 @@ const AddGoodReceivedNote = () => {
                         </Form.Item>
 
                         <Form.Item
-                            name="supplier"
-                            label="Supplier"
-                            rules={[{ required: true, message: 'Please select supplier!' }]}
+                            name="shippingCost"
+                            label="Shipping Cost"
+                            initialValue={0}
                             style={{ flex: 1, minWidth: '250px' }}
                         >
-                            <Select placeholder="Select a supplier">
-                                {suppliers.map(supplier => (
-                                    <Option key={supplier.id} value={supplier.id}>{supplier.name}</Option>
-                                ))}
-                            </Select>
+                            <InputNumber
+                                min={0}
+                                step={0.01}
+                                suffix="VND"
+                                style={{ width: '100%' }}
+                            />
                         </Form.Item>
                     </Flex>
-
                     <Form.Item
-                        name="notes"
+                        name="note"
                         label="Notes"
                     >
                         <TextArea rows={4} placeholder="Additional notes about this delivery" />

@@ -1,114 +1,177 @@
 import { useState, useEffect } from 'react';
-import { Form, Input, InputNumber, Select, Button, Upload, Breadcrumb, Row, Col, Switch, Card, Flex, Typography, Divider } from 'antd';
-import { UploadOutlined, PlusOutlined } from '@ant-design/icons';
-import { Link, useParams } from 'react-router-dom';
+import { Form, Input, InputNumber, Select, Button, Upload, Breadcrumb, Row, Col, Switch, Card, Flex, Typography, App } from 'antd';
+import { UploadOutlined } from '@ant-design/icons';
+import { Link, useParams, useNavigate } from 'react-router-dom';
+import { ProductApiRequest, CategoryApiRequest, PlacementApiRequest, AttributeApiRequest, UploadApiRequest } from '../../../api/ApiRequests';
+import ProductVariants from './ProductVariants';
+
 const { Option } = Select;
 
-const EditProduct = ({ open, onCancel, onSubmit }) => {
-    const [form] = Form.useForm();
+const EditProduct = () => {
+    const [productForm] = Form.useForm();
+    const { message } = App.useApp();
+    const navigate = useNavigate();
+    const params = useParams();
+    const { id } = params;
+
     const [attributes, setAttributes] = useState([]);
-
-    const { id } = useParams();
-
-    const initialValues = {
-        name: 'Product Name',
-        description: 'Product Description',
-        basePrice: 100,
-        category: 'Electronics',
-        placement: 'Kitchen',
-        isAvailable: true,
-
-    }
-
-    const variants = [
-        {
-            name: 'Variant 1',
-            price: 100,
-            stock: 100,
-            images: ['image1.jpg', 'image2.jpg'],
-            attributes: {
-                Color: 'Black',
-                Size: 'M',
-                Material: 'Cotton'
-            },
-            priceAdjustment: 10
-        },
-        {
-            name: 'Variant 2',
-            price: 100,
-            stock: 100,
-            images: ['image1.jpg', 'image2.jpg'],
-            attributes: {
-                Color: 'White',
-                Size: 'L',
-                Material: 'Polyester'
-            },
-            priceAdjustment: 10
-        }
-    ]
-
-    const attributeOptions = [
-        {
-            category: 'Electronics',
-            attributes: [
-                { label: 'Brand', values: ['Apple', 'Samsung', 'Sony', 'LG'] },
-                { label: 'Color', values: ['Black', 'White', 'Silver', 'Gold'] },
-                { label: 'Storage', values: ['64GB', '128GB', '256GB', '512GB'] },
-                { label: 'Warranty', values: ['1 Year', '2 Years', '3 Years'] }
-            ]
-        },
-        {
-            category: 'Clothing',
-            attributes: [
-                { label: 'Size', values: ['XS', 'S', 'M', 'L', 'XL'] },
-                { label: 'Color', values: ['Black', 'White', 'Red', 'Blue'] },
-                { label: 'Material', values: ['Cotton', 'Polyester', 'Wool', 'Silk'] },
-                { label: 'Style', values: ['Casual', 'Formal', 'Sports'] }
-            ]
-        },
-        {
-            category: 'Furniture',
-            attributes: [
-                { label: 'Material', values: ['Wood', 'Metal', 'Glass', 'Plastic'] },
-                { label: 'Color', values: ['Brown', 'Black', 'White', 'Grey'] },
-                { label: 'Style', values: ['Modern', 'Classic', 'Rustic'] },
-                { label: 'Assembly', values: ['Required', 'Pre-assembled'] }
-            ]
-        },
-        {
-            category: 'Books',
-            attributes: [
-                { label: 'Format', values: ['Hardcover', 'Paperback', 'E-book'] },
-                { label: 'Language', values: ['English', 'Spanish', 'French'] },
-                { label: 'Genre', values: ['Fiction', 'Non-fiction', 'Academic'] },
-                { label: 'Condition', values: ['New', 'Used'] }
-            ]
-        }
-    ];
+    const [categories, setCategories] = useState([]);
+    const [placements, setPlacements] = useState([]);
+    const [loading, setLoading] = useState(false);
+    const [fileList, setFileList] = useState([]);
+    const [product, setProduct] = useState(null);
+    const [selectedCategory, setSelectedCategory] = useState(null);
 
     useEffect(() => {
-        if (initialValues) {
-            form.setFieldsValue(initialValues);
-            if (initialValues.category) {
-                handleCategoryChange(initialValues.category);
+        fetchProduct();
+        fetchCategories();
+        fetchPlacements();
+    }, [id]);
+
+    useEffect(() => {
+        if (product) {
+            productForm.setFieldsValue({
+                name: product.name,
+                description: product.description,
+                basePrice: product.price,
+                category: product.categoryId,
+                placement: product.placementId,
+                isAvailable: product.isActive,
+            });
+            
+            if (product.imageUrl) {
+                setFileList([{
+                    uid: '-1',
+                    name: 'product-image.jpg',
+                    status: 'done',
+                    url: product.imageUrl,
+                }]);
+            }
+            
+            if (product.categoryId) {
+                setSelectedCategory(product.categoryId);
+                // Fetch category-specific attributes when product loads
+                fetchAttributesByCategoryId(product.categoryId);
             }
         }
-    }, [initialValues, form]);
+    }, [product, productForm]);
 
-    const handleSubmit = () => {
-        form.validateFields()
-            .then(values => {
-                onSubmit(values);
-                form.resetFields();
-            })
-            .catch(info => {
-                console.log('Validate Failed:', info);
-            });
+    const fetchProduct = async () => {
+        try {
+            setLoading(true);
+            const response = await ProductApiRequest.getProductById(id);
+            setProduct(response.data);
+        } catch (error) {
+            message.error('Failed to fetch product');
+            console.error(error);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const fetchCategories = async () => {
+        try {
+            const response = await CategoryApiRequest.getAllCategories();
+            const categoriesData = response.data.$values || [];
+            setCategories(categoriesData);
+        } catch (error) {
+            message.error('Failed to fetch categories');
+            console.error(error);
+        }
+    };
+
+    const fetchPlacements = async () => {
+        try {
+            const response = await PlacementApiRequest.getAllPlacements();
+            setPlacements(response.data.$values || []);
+        } catch (error) {
+            message.error('Failed to fetch placements');
+            console.error(error);
+        }
+    };
+
+    const fetchAttributesByCategoryId = async (categoryId) => {
+        try {
+            const response = await AttributeApiRequest.getWithAttributeValuesByCategoryId(categoryId);
+            setAttributes(response.data.$values || []);
+        } catch (error) {
+            message.error('Failed to fetch attributes for this category');
+            console.error(error);
+        }
+    };
+
+    const handleSubmit = async () => {
+        try {
+            setLoading(true);
+            const values = await productForm.validateFields();
+            
+            let imageUrl = product?.imageUrl || '';
+            if (fileList.length > 0 && fileList[0].originFileObj) {
+                const formData = new FormData();
+                formData.append('file', fileList[0].originFileObj);
+                
+                if (product?.imageUrl) {
+                    // Update existing image
+                    const uploadResponse = await UploadApiRequest.updateImage(formData, product.imageUrl);
+                    imageUrl = uploadResponse.data;
+                } else {
+                    // Upload new image
+                    const uploadResponse = await UploadApiRequest.uploadImage(formData);
+                    imageUrl = uploadResponse.data;
+                }
+            } else if (fileList.length > 0 && fileList[0].url) {
+                // Keep the current image URL if no new file is uploaded
+                imageUrl = product?.imageUrl;
+            }
+
+            // Prepare attribute values
+            const attributeValues = [];
+            if (selectedCategory) {
+                attributes.forEach(attr => {
+                    const value = values[attr.name];
+                    if (value) {
+                        attributeValues.push({
+                            value,
+                            attributeId: attr.id
+                        });
+                    }
+                });
+            }
+
+            const productData = {
+                id: id,
+                imageUrl,
+                name: values.name,
+                price: values.basePrice,
+                description: values.description,
+                isActive: values.isAvailable,
+                categoryId: values.category,
+                placementId: values.placement,
+                status: values.isAvailable ? 'Active' : 'Inactive',
+            };
+
+            await ProductApiRequest.updateProduct(productData);
+            message.success('Product updated successfully');
+            navigate('/admin/products');
+        } catch (error) {
+            message.error('Failed to update product');
+            console.error(error);
+        } finally {
+            setLoading(false);
+        }
     };
 
     const handleCategoryChange = (value) => {
-        const categoryAttributes = attributeOptions.find(option => option.category === value)?.attributes || [];
-        setAttributes(categoryAttributes);
+        setSelectedCategory(value);
+        fetchAttributesByCategoryId(value);
+    };
+
+    const handleFileChange = ({ fileList }) => {
+        setFileList(fileList);
+    };
+
+    const handleCancel = () => {
+        navigate('/admin/products');
     };
 
     return (
@@ -121,8 +184,10 @@ const EditProduct = ({ open, onCancel, onSubmit }) => {
                     <Link to={`/admin/products/edit/${id}`}>Edit Product</Link>
                 </Breadcrumb.Item>
             </Breadcrumb>
+            
+            {/* Product Form */}
             <Form
-                form={form}
+                form={productForm}
                 layout="vertical"
                 name="edit_product_form"
                 onFinish={handleSubmit}
@@ -130,27 +195,28 @@ const EditProduct = ({ open, onCancel, onSubmit }) => {
                 <Flex justify='space-between' align='center'>
                     <Typography>Edit Product</Typography>
                     <Flex gap={16}>
-                        <Button onClick={onCancel}>
+                        <Button onClick={handleCancel}>
                             Cancel
                         </Button>
-                        <Button type="primary" htmlType="submit">
+                        <Button type="primary" htmlType="submit" loading={loading}>
                             Save Changes
                         </Button>
                     </Flex>
                 </Flex>
                 <Row gutter={[8, 8]} style={{ marginTop: '10px' }}>
                     <Col xs={24} sm={24} md={12} lg={12} xl={12}>
-                        <Card title="Product Infomation" style={{ height: '100%' }}>
+                        <Card title="Product Information" style={{ height: '100%' }}>
                             <Form.Item
                                 name="image"
                                 label="Product Image"
-                                rules={[{ required: true, message: 'Please upload product image!' }]}
+                                // rules={[{ required: true, message: 'Please upload product image!' }]}
                             >
                                 <Upload
                                     listType="picture-card"
                                     maxCount={1}
+                                    fileList={fileList}
                                     beforeUpload={() => false}
-                                    onChange={() => { }}
+                                    onChange={handleFileChange}
                                 >
                                     <Button variant="text" icon={<UploadOutlined />}></Button>
                                 </Upload>
@@ -206,10 +272,9 @@ const EditProduct = ({ open, onCancel, onSubmit }) => {
                                     placeholder="Select category"
                                     onChange={handleCategoryChange}
                                 >
-                                    <Option value="Electronics">Electronics</Option>
-                                    <Option value="Clothing">Clothing</Option>
-                                    <Option value="Furniture">Furniture</Option>
-                                    <Option value="Books">Books</Option>
+                                    {categories.map(category => (
+                                        <Option key={category.id} value={category.id}>{category.name}</Option>
+                                    ))}
                                 </Select>
                             </Form.Item>
 
@@ -219,103 +284,19 @@ const EditProduct = ({ open, onCancel, onSubmit }) => {
                                 rules={[{ required: true, message: 'Please select placement!' }]}
                             >
                                 <Select placeholder="Select placement">
-                                    <Option value="Kitchen">Kitchen</Option>
-                                    <Option value="Living Room">Living Room</Option>
-                                    <Option value="Bedroom">Bedroom</Option>
-                                    <Option value="Bathroom">Bathroom</Option>
-                                    <Option value="Office">Office</Option>
+                                    {placements.map(placement => (
+                                        <Option key={placement.id} value={placement.id}>{placement.name}</Option>
+                                    ))}
                                 </Select>
                             </Form.Item>
-
-
-
-                            {attributes.length > 0 && attributes.map((attribute) => (
-                                <Form.Item
-                                    key={attribute.label}
-                                    name={attribute.label}
-                                    label={attribute.label}
-                                    rules={[{ required: true, message: 'Please select attribute!' }]}
-                                >
-                                    <Select
-                                        mode="multiple"
-                                        placeholder="Select attribute values"
-                                        style={{ width: '100%' }}
-                                    >
-                                        {attribute.values.map((value) => (
-                                            <Option key={value} value={value}>{value}</Option>
-                                        ))}
-                                    </Select>
-                                </Form.Item>
-                            ))}
+                            
                         </Card>
                     </Col>
-
                 </Row>
-
-
-                <Card
-                    extra={<Button variant='text' htmlType="submit"><PlusOutlined /> Add Variant</Button>}
-                    title="Product Variants" style={{ marginTop: '10px' }}>
-                    <Flex vertical align='start'>
-                        {
-                            variants.map((variant) => (
-                                <>
-                                    <Row key={variant.name} gutter={[16, 16]} style={{ width: '100%' }}>
-                                        <Col xs={24} sm={24} md={24} lg={24} xl={24}>
-                                            <Upload
-                                                listType="picture-card"
-                                                maxCount={1}
-                                                beforeUpload={() => false}
-                                                onChange={() => { }}
-                                            >
-                                                <Button variant='text' icon={<UploadOutlined />}></Button>
-                                            </Upload>
-                                        </Col>
-                                        <Col xs={24} sm={24} md={12} lg={24} xl={24}>
-                                            <Row gutter={[16, 16]}>
-                                                {
-                                                    Object.entries(variant.attributes).map(([key, value]) => (
-                                                        <>
-                                                            <Col xs={24} sm={24} md={12} lg={12} xl={12}>
-                                                                <Form.Item
-                                                                    key={key}
-                                                                    name={`variant.${variant.name}.${key}`}
-                                                                    label={key}
-                                                                    rules={[{ required: true, message: 'Please input price!' }]}
-                                                                >
-                                                                    <Input placeholder="Enter attribute value" />
-                                                                </Form.Item>
-                                                            </Col>
-
-                                                        </>
-                                                    ))}
-
-                                                <Col xs={24} sm={24} md={12} lg={12} xl={12}>
-                                                    <Form.Item
-                                                        name={`variant.${variant.name}.price`}
-                                                        label="Price Adjustment"
-                                                        rules={[{ required: true, message: 'Please input price!' }]}
-                                                    >
-                                                        <InputNumber
-                                                            prefix="$"
-                                                            min={0}
-                                                            step={0.01}
-                                                            style={{ width: '100%' }}
-                                                            placeholder="Enter price adjustment"
-                                                        />
-                                                    </Form.Item>
-                                                </Col>
-                                            </Row>
-                                        </Col>
-                                    </Row>
-                                    <Divider />
-                                </>
-                            ))
-                        }
-                    </Flex>
-                </Card>
-
             </Form>
+
+            {/* Product Variants */}
+            <ProductVariants productId={id} attributes={attributes} style={{ marginTop: '10px' }} />
         </>
     );
 };

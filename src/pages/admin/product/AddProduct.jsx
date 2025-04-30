@@ -1,75 +1,130 @@
 import { useState, useEffect } from 'react';
-import { Modal, Form, Input, InputNumber, Select, Button, Space, Typography, Upload } from 'antd';
-import { PlusOutlined, MinusCircleOutlined, UploadOutlined } from '@ant-design/icons';
-
+import { Modal, Form, Input, InputNumber, Select, Button, Switch, Upload, App } from 'antd';
+import { UploadOutlined } from '@ant-design/icons';
+import { CategoryApiRequest, PlacementApiRequest, AttributeApiRequest, UploadApiRequest, ProductApiRequest } from '../../../api/ApiRequests';
 
 const { Option } = Select;
 
 const AddProduct = ({ open, onCancel, onSubmit }) => {
     const [form] = Form.useForm();
+    const { message } = App.useApp();
+    const [categories, setCategories] = useState([]);
+    const [placements, setPlacements] = useState([]);
     const [attributes, setAttributes] = useState([]);
+    const [selectedCategory, setSelectedCategory] = useState(null);
+    const [fileList, setFileList] = useState([]);
+    const [loading, setLoading] = useState(false);
 
-    const attributeOptions = [
-        {
-            category: 'Electronics',
-            attributes: [
-                { label: 'Brand', values: ['Apple', 'Samsung', 'Sony', 'LG'] },
-                { label: 'Color', values: ['Black', 'White', 'Silver', 'Gold'] },
-                { label: 'Storage', values: ['64GB', '128GB', '256GB', '512GB'] },
-                { label: 'Warranty', values: ['1 Year', '2 Years', '3 Years'] }
-            ]
-        },
-        {
-            category: 'Clothing',
-            attributes: [
-                { label: 'Size', values: ['XS', 'S', 'M', 'L', 'XL'] },
-                { label: 'Color', values: ['Black', 'White', 'Red', 'Blue'] },
-                { label: 'Material', values: ['Cotton', 'Polyester', 'Wool', 'Silk'] },
-                { label: 'Style', values: ['Casual', 'Formal', 'Sports'] }
-            ]
-        },
-        {
-            category: 'Furniture',
-            attributes: [
-                { label: 'Material', values: ['Wood', 'Metal', 'Glass', 'Plastic'] },
-                { label: 'Color', values: ['Brown', 'Black', 'White', 'Grey'] },
-                { label: 'Style', values: ['Modern', 'Classic', 'Rustic'] },
-                { label: 'Assembly', values: ['Required', 'Pre-assembled'] }
-            ]
-        },
-        {
-            category: 'Books',
-            attributes: [
-                { label: 'Format', values: ['Hardcover', 'Paperback', 'E-book'] },
-                { label: 'Language', values: ['English', 'Spanish', 'French'] },
-                { label: 'Genre', values: ['Fiction', 'Non-fiction', 'Academic'] },
-                { label: 'Condition', values: ['New', 'Used'] }
-            ]
+    useEffect(() => {
+        fetchCategories();
+        fetchPlacements();
+        fetchAttributes();
+    }, []);
+
+    const fetchCategories = async () => {
+        try {
+            const response = await CategoryApiRequest.getAllWithParentAndAttributes();
+            setCategories(response.data.$values || []);
+        } catch (error) {
+            message.error('Failed to fetch categories');
+            console.error(error);
         }
-    ];
+    };
 
-    const handleSubmit = () => {
-        form.validateFields()
-            .then(values => {
-                onSubmit(values);
-                form.resetFields();
-            })
-            .catch(info => {
-                console.log('Validate Failed:', info);
-            });
+    const fetchPlacements = async () => {
+        try {
+            const response = await PlacementApiRequest.getAllPlacements();
+            setPlacements(response.data.$values || []);
+        } catch (error) {
+            message.error('Failed to fetch placements');
+            console.error(error);
+        }
+    };
+
+    const fetchAttributes = async () => {
+        try {
+            const response = await AttributeApiRequest.getAllAttributes();
+            setAttributes(response.data.$values || []);
+        } catch (error) {
+            message.error('Failed to fetch attributes');
+            console.error(error);
+        }
+    };
+
+    const handleSubmit = async () => {
+        try {
+            setLoading(true);
+            const values = await form.validateFields();
+            
+            let imageUrl = '';
+            if (fileList.length > 0) {
+                const formData = new FormData();
+                formData.append('file', fileList[0].originFileObj);
+                const uploadResponse = await UploadApiRequest.uploadImage(formData);
+                imageUrl = uploadResponse.data;
+            }
+
+            // Prepare attribute values
+            const attributeValues = [];
+            if (selectedCategory) {
+                const categoryAttributes = categories.find(c => c.id === selectedCategory)?.attributes?.$values || [];
+                
+                categoryAttributes.forEach(attr => {
+                    const value = values[`attribute_${attr.id}`];
+                    if (value) {
+                        attributeValues.push({
+                            value,
+                            attributeId: attr.id
+                        });
+                    }
+                });
+            }
+
+            const productData = {
+                imageUrl,
+                name: values.name,
+                price: values.price,
+                description: values.description,
+                isActive: values.isActive !== false, // Default to true if undefined
+                categoryId: values.categoryId,
+                placementId: values.placementId,
+                status: values.isActive !== false ? 'Active' : 'Inactive',
+                attributeValues
+            };
+
+            await ProductApiRequest.createProduct(productData).then(
+                (response) => {
+                    message.success('Product created successfully');
+                    onSubmit(productData);
+                    form.resetFields();
+                    setFileList([]);
+                    setSelectedCategory(null);
+                },
+                (error) => {
+                    message.error('Failed to create product');
+                    console.error(error);
+                }
+            );
+        } catch (error) {
+            console.error('Validation failed:', error);
+        } finally {
+            setLoading(false);
+        }
     };
 
     const handleCategoryChange = (value) => {
-        const categoryAttributes = attributeOptions.find(option => option.category === value)?.attributes || [];
-        setAttributes(categoryAttributes);
-        
-        // Clear previous attribute values when category changes
-        const previousAttributes = form.getFieldValue('attributes');
-        if (previousAttributes) {
-            form.setFieldsValue({
-                ...Object.fromEntries(categoryAttributes.map(attr => [attr.label, undefined]))
-            });
-        }
+        setSelectedCategory(value);
+        form.resetFields(['attributeValues']);
+    };
+
+    const handleFileChange = ({ fileList }) => {
+        setFileList(fileList);
+    };
+
+    const getCategoryAttributes = () => {
+        if (!selectedCategory) return [];
+        const category = categories.find(c => c.id === selectedCategory);
+        return category?.attributes?.$values || [];
     };
 
     return (
@@ -81,11 +136,13 @@ const AddProduct = ({ open, onCancel, onSubmit }) => {
             onCancel={onCancel}
             onOk={handleSubmit}
             width={800}
+            confirmLoading={loading}
         >
             <Form
                 form={form}
                 layout="vertical"
                 name="add_product_form"
+                initialValues={{ isActive: true }}
             >
                 <Form.Item
                     name="image"
@@ -95,12 +152,15 @@ const AddProduct = ({ open, onCancel, onSubmit }) => {
                     <Upload
                         listType="picture-card"
                         maxCount={1}
+                        fileList={fileList}
                         beforeUpload={() => false}
-                        onChange={() => {}}
+                        onChange={handleFileChange}
+                        
                     >
-                        <Button variant="text" icon={<UploadOutlined />}></Button>
+                        <UploadOutlined />
                     </Upload>
                 </Form.Item>
+                
                 <Form.Item
                     name="name"
                     label="Product Name"
@@ -118,21 +178,21 @@ const AddProduct = ({ open, onCancel, onSubmit }) => {
                 </Form.Item>
 
                 <Form.Item
-                    name="basePrice"
-                    label="Base Price"
-                    rules={[{ required: true, message: 'Please input base price!' }]}
+                    name="price"
+                    label="Price"
+                    rules={[{ required: true, message: 'Please input price!' }]}
                 >
                     <InputNumber
                         prefix="$"
                         min={0}
                         step={0.01}
                         style={{ width: '100%' }}
-                        placeholder="Enter base price"
+                        placeholder="Enter price"
                     />
                 </Form.Item>
 
                 <Form.Item
-                    name="category"
+                    name="categoryId"
                     label="Category"
                     rules={[{ required: true, message: 'Please select category!' }]}
                 >
@@ -140,42 +200,53 @@ const AddProduct = ({ open, onCancel, onSubmit }) => {
                         placeholder="Select category"
                         onChange={handleCategoryChange}
                     >
-                        <Option value="Electronics">Electronics</Option>
-                        <Option value="Clothing">Clothing</Option>
-                        <Option value="Furniture">Furniture</Option>
-                        <Option value="Books">Books</Option>
+                        {categories.map(category => (
+                            <Option key={category.id} value={category.id}>{category.name}</Option>
+                        ))}
                     </Select>
                 </Form.Item>
 
                 <Form.Item
-                    name="placement"
+                    name="placementId"
                     label="Placement"
                     rules={[{ required: true, message: 'Please select placement!' }]}
                 >
                     <Select placeholder="Select placement">
-                        <Option value="Kitchen">Kitchen</Option>
-                        <Option value="Living Room">Living Room</Option>
-                        <Option value="Bedroom">Bedroom</Option>
-                        <Option value="Bathroom">Bathroom</Option>
-                        <Option value="Office">Office</Option>
+                        {placements.map(placement => (
+                            <Option key={placement.id} value={placement.id}>{placement.name}</Option>
+                        ))}
                     </Select>
                 </Form.Item>
 
-                <Typography.Text strong>Attributes</Typography.Text>
-                { attributes.length > 0 && attributes.map((attribute) => (
-                    <Form.Item
-                        key={attribute.label}
-                        name={attribute.label}
-                        label={attribute.label}
-                        rules={[{ required: true, message: 'Please select attribute!' }]}
-                    >
-                        <Select placeholder="Select attribute">
-                            {attribute.values.map((value) => (
-                                <Option key={value} value={value}>{value}</Option>
-                            ))}
-                        </Select>
-                    </Form.Item>
-                ))}
+                <Form.Item
+                    name="isActive"
+                    label="Status"
+                    valuePropName="checked"
+                >
+                    <Switch checkedChildren="Active" unCheckedChildren="Inactive" defaultChecked />
+                </Form.Item>
+
+                {getCategoryAttributes().length > 0 && (
+                    <>
+                        <div style={{ marginBottom: 16 }}>
+                            <h3>Attributes</h3>
+                        </div>
+                        {getCategoryAttributes().map(attribuste => (
+                            <Form.Item
+                                key={attribute.id}
+                                name={`attribute_${attribute.id}`}
+                                label={attribute.name}
+                                rules={[{ required: true, message: `Please select ${attribute.name}!` }]}
+                            >
+                                <Select placeholder={`Select ${attribute.name}`}>
+                                    {attribute.values?.$values?.map(value => (
+                                        <Option key={value} value={value}>{value}</Option>
+                                    )) || []}
+                                </Select>
+                            </Form.Item>
+                        ))}
+                    </>
+                )}
             </Form>
         </Modal>
     );

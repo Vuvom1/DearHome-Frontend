@@ -1,13 +1,17 @@
-import { Layout, Menu, Button, Flex, Image, Typography, Grid } from 'antd';
+import { Layout, Menu, Button, Flex, Image, Typography, Grid, Avatar } from 'antd';
+import { ShoppingCartOutlined } from '@ant-design/icons';
 import { useNavigate, Outlet } from 'react-router-dom';
 import logo from '../../assets/images/logo.png';
 import CustomerMenu from './CustomerMenu';
 const { Header, Content, Footer } = Layout;
 const { useBreakpoint } = Grid;
+import { useSelector } from 'react-redux';
+import { URLS } from '../../constants/urls';
 
 const CustomerLayout = ({ children }) => {
     const navigate = useNavigate();
     const screens = useBreakpoint();
+    const user = useSelector(state => state.auth.user);
 
     return (
         <Layout style={{ minHeight: '100vh' }}>
@@ -22,26 +26,27 @@ const CustomerLayout = ({ children }) => {
             >
                 <Flex 
                     vertical={!screens.md}
-                    justify='space-between' 
-                    align='center' 
+                    justify="space-between" 
+                    align="center" 
                     style={{ 
-                        padding: screens.md ? '0' : '10px 0',
+                        padding: screens.md ? 0 : '10px 0',
                         gap: screens.md ? 0 : '10px'
                     }}
                 >
+                    {/* Left: Logo, Title, Mobile User/Login, Menu */}
                     <Flex 
                         vertical={!screens.md}
                         gap={screens.md ? 10 : 5} 
-                        align='center'
+                        align="center"
                         style={{ width: screens.md ? 'auto' : '100%' }}
                     >
                         <Flex 
-                            justify='space-between' 
-                            align='center' 
+                            justify="space-between" 
+                            align="center" 
                             gap={10}
                             style={{ width: screens.md ? 'auto' : '100%' }}
                         >
-                            <Flex align='center' gap={10}>
+                            <Flex align="center" gap={10}>
                                 <Image
                                     preview={false}
                                     src={logo}
@@ -60,26 +65,66 @@ const CustomerLayout = ({ children }) => {
                                 </Typography.Title>
                             </Flex>
                             {!screens.md && (
-                                <Button 
-                                    type="primary" 
-                                    onClick={() => navigate('/auth')}
-                                    style={{ width: '100px' }}
-                                >
-                                    Login
-                                </Button>
+                                user ? (
+                                    <Flex align="center" gap={10}>
+                                        <Button 
+                                            type="text" 
+                                            icon={<ShoppingCartOutlined />} 
+                                            onClick={() => navigate(URLS.CUSTOMER.CART)} 
+                                        />
+                                        <Flex 
+                                            align="center" 
+                                            gap={10} 
+                                            onClick={() => navigate(URLS.CUSTOMER.PROFILE)}
+                                            style={{ cursor: 'pointer' }}
+                                        >
+                                            <Avatar src={user.certthumbprint} />
+                                            <Typography.Text>{user.unique_name}</Typography.Text>
+                                        </Flex>
+                                    </Flex>
+                                ) : (
+                                    <Button 
+                                        variant="outlined"
+                                        onClick={() => navigate(URLS.AUTH.LOGIN)}
+                                        style={{ width: '100px' }}
+                                    >
+                                        Login
+                                    </Button>
+                                )
                             )}
                         </Flex>
 
                         <CustomerMenu />
                     </Flex>
+
+                    {/* Right: Desktop Login or User + Cart */}
                     {screens.md && (
-                        <Button 
-                            type="primary" 
-                            onClick={() => navigate('/auth')}
-                            style={{ width: 'auto' }}
-                        >
-                            Login
-                        </Button>
+                        !user ? (
+                            <Button 
+                                type="primary" 
+                                onClick={() => navigate(URLS.AUTH.LOGIN)}
+                                style={{ width: 'auto' }}
+                            >
+                                Login
+                            </Button>
+                        ) : (
+                            <Flex align="center" gap={10}>
+                                <Button 
+                                    type="text" 
+                                    icon={<ShoppingCartOutlined />} 
+                                    onClick={() => navigate(URLS.CUSTOMER.CART)} 
+                                />
+                                <Flex 
+                                    align="center" 
+                                    gap={10} 
+                                    onClick={() => navigate(URLS.CUSTOMER.PROFILE)}
+                                    style={{ cursor: 'pointer' }}
+                                >
+                                    <Avatar src={user.certthumbprint} />
+                                    <Typography.Text>{user.unique_name}</Typography.Text>
+                                </Flex>
+                            </Flex>
+                        )
                     )}
                 </Flex>
             </Header>

@@ -2,11 +2,19 @@ import { Carousel, Typography, Card, Row, Col, Button, Image, Flex, Tabs } from 
 import { RightOutlined, LeftOutlined } from '@ant-design/icons';
 import CategoryCard from '../../components/CategoryCard';
 import { useEffect, useState } from 'react';
+import {categoryApiRequest} from '../../api/ApiRequests';
+
 
 const { Title, Paragraph } = Typography;
 
 const Home = () => {
     const [isMobile, setIsMobile] = useState(false);
+    const [categories, setCategories] = useState([]);
+
+    const fetchCategories = async () => {
+        const categories = await categoryApiRequest.getAllCategories();
+        setCategories(categories.data.$values);
+    }
 
     useEffect(() => {
         const checkMobile = () => {
@@ -15,6 +23,7 @@ const Home = () => {
         
         checkMobile();
         window.addEventListener('resize', checkMobile);
+        fetchCategories();
         
         return () => window.removeEventListener('resize', checkMobile);
     }, []);
@@ -105,22 +114,12 @@ const Home = () => {
                                         Categories
                                     </Title>
                                     <Row gutter={[32, 16]}>
-                                        <Col xs={12} sm={12} md={12} lg={12} xl={12}>
-                                            <CategoryCard image="https://firebasestorage.googleapis.com/v0/b/makemyhome-27df4.appspot.com/o/Banners%2FImages%2FGroup%2057.png?alt=media&token=177ad552-3570-435e-a7d8-8330bc4602e2"
-                                                title="Furniture" />
-                                        </Col>
-                                        <Col xs={12} sm={12} md={12} lg={12} xl={12}>
-                                            <CategoryCard image="https://firebasestorage.googleapis.com/v0/b/makemyhome-27df4.appspot.com/o/Banners%2FImages%2FGroup%2057.png?alt=media&token=177ad552-3570-435e-a7d8-8330bc4602e2"
-                                                title="Electronics" />
-                                        </Col>
-                                        <Col xs={12} sm={12} md={12} lg={12} xl={12}>
-                                            <CategoryCard image="https://firebasestorage.googleapis.com/v0/b/makemyhome-27df4.appspot.com/o/Banners%2FImages%2FGroup%2057.png?alt=media&token=177ad552-3570-435e-a7d8-8330bc4602e2"
-                                                title="Decor" />
-                                        </Col>
-                                        <Col xs={12} sm={12} md={12} lg={12} xl={12}>
-                                            <CategoryCard image="https://firebasestorage.googleapis.com/v0/b/makemyhome-27df4.appspot.com/o/Banners%2FImages%2FGroup%2057.png?alt=media&token=177ad552-3570-435e-a7d8-8330bc4602e2"
-                                                title="Lighting" />
-                                        </Col>
+                                        {categories?.slice(0, 4).map((category) => (
+                                            <Col key={category.id} xs={12} sm={12} md={8} lg={8} xl={8}>
+                                                <CategoryCard image={category.imageUrl}
+                                                    title={category.name} />
+                                            </Col>
+                                        ))}
                                     </Row>
                                 </Col>
                                 <Col xs={1} sm={1} md={1} lg={1} xl={1}>
@@ -168,11 +167,11 @@ const Home = () => {
                                         Categories
                                     </Title>
                                     <Row gutter={[32, 16]} justify="center">
-                                        {[...Array(4)].map((_, index) => (
+                                        {categories?.slice(4)?.map((category, index) => (
                                             <Col key={index} xs={12} sm={12} md={6} lg={6} xl={6}>
                                                 <CategoryCard 
-                                                    image="https://firebasestorage.googleapis.com/v0/b/makemyhome-27df4.appspot.com/o/Banners%2FImages%2FGroup%2057.png?alt=media&token=177ad552-3570-435e-a7d8-8330bc4602e2"
-                                                    title={['Furniture', 'Electronics', 'Decor', 'Lighting'][index % 4]} 
+                                                    image={category.imageUrl}
+                                                    title={category.name}
                                                 />
                                             </Col>
                                         ))}

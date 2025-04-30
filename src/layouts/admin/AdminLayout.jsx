@@ -1,19 +1,24 @@
 import { useState } from 'react';
-import { Layout, Menu } from 'antd';
+import { Layout, Menu, Avatar, Space, Typography } from 'antd';
 import { Outlet, useNavigate } from 'react-router-dom';
 import {
   MenuFoldOutlined,
   MenuUnfoldOutlined,
-  UserOutlined,
-  ShoppingOutlined,
-  DashboardOutlined,
-  ShoppingCartOutlined,
 } from '@ant-design/icons';
 import AdminMenu from './AdminMenu';
+import { useSelector } from 'react-redux';
+import { URLS } from '../../constants/urls';
+
+
 const { Header, Sider, Content } = Layout;
+const { Text } = Typography;
 
 const AdminLayout = () => {
   const [collapsed, setCollapsed] = useState(false);
+  const user = useSelector((state) => state.auth.user);
+  const navigate = useNavigate();
+
+  const avatar = user.certthumbprint ? user.certthumbprint : "https://cdn1.iconfinder.com/data/icons/user-pictures/100/male3-512.png";
 
   return (
     <Layout style={{ height: '100vh' }}>
@@ -41,22 +46,35 @@ const AdminLayout = () => {
             background: '#fff',
             position: 'fixed',
             zIndex: 1,
-            width: '100%',
+            width: `calc(100% - ${collapsed ? 70 : 190}px)`,
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
           }}
         >
-          {collapsed ? (
-            <MenuUnfoldOutlined
-              className="trigger"
-              onClick={() => setCollapsed(!collapsed)}
-              style={{ fontSize: '18px', padding: '0 24px', cursor: 'pointer' }}
-            />
-          ) : (
-            <MenuFoldOutlined
-              className="trigger"
-              onClick={() => setCollapsed(!collapsed)}
-              style={{ fontSize: '18px', padding: '0 24px', cursor: 'pointer' }}
-            />
-          )}
+          <div>
+            {collapsed ? (
+              <MenuUnfoldOutlined
+                className="trigger"
+                onClick={() => setCollapsed(!collapsed)}
+                style={{ fontSize: '18px', padding: '0 24px', cursor: 'pointer' }}
+              />
+            ) : (
+              <MenuFoldOutlined
+                className="trigger"
+                onClick={() => setCollapsed(!collapsed)}
+                style={{ fontSize: '18px', padding: '0 24px', cursor: 'pointer' }}
+              />
+            )}
+          </div>
+            <Space style={{ marginRight: 20 }} onClick={() => navigate(URLS.ADMIN.PROFILE)}>
+              <Avatar 
+                size={32}
+                src={avatar}
+                style={{ backgroundColor: avatar ? 'transparent' : '#1890ff' }}
+              />
+              <Text strong>{user.unique_name}</Text>
+            </Space>
         </Header>
         <Content
           style={{

@@ -1,36 +1,105 @@
-import React, { useState } from 'react';
-import { Card, Typography, Tabs, Table, Button, Space, Input, Form, Modal, Select, Tag, Flex, message } from 'antd';
-import { PlusOutlined, EditOutlined, DeleteOutlined, SearchOutlined, ArrowUpOutlined, ArrowDownOutlined } from '@ant-design/icons';
+import React, { useState, useEffect } from 'react';
+import { Card, Typography, Tabs, Table, Button, Space, Input, Form, Modal, Select, Tag, Flex, App, Upload, Image } from 'antd';
+import { PlusOutlined, EditOutlined, DeleteOutlined, SearchOutlined, ArrowUpOutlined, ArrowDownOutlined, UploadOutlined, ReloadOutlined } from '@ant-design/icons';
+import apiInstance from '../../../api/ApiInstance';
+import { CategoryApiRequest, AttributeApiRequest, UploadApiRequest, PlacementApiRequest } from '../../../api/ApiRequests';
 
 const { Title } = Typography;
 const { TabPane } = Tabs;
 const { Option } = Select;
 
 const CategoryAndPlacement = () => {
+  const { message } = App.useApp();
   const [activeTab, setActiveTab] = useState('1');
   const [categoryModalVisible, setCategoryModalVisible] = useState(false);
+  const [deleteCategoryId, setDeleteCategoryId] = useState(null);
+  const [deleteConfirmVisible, setDeleteConfirmVisible] = useState(false);
   const [placementModalVisible, setPlacementModalVisible] = useState(false);
   const [form] = Form.useForm();
   const [editingRecord, setEditingRecord] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [attributes, setAttributes] = useState([]);
+  const [parentCategories, setParentCategories] = useState([]);
+  const [searchText, setSearchText] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [attributesLoading, setAttributesLoading] = useState(false);
+  const [placementsLoading, setPlacementsLoading] = useState(false);
 
-  // Mock data for categories
-  const [categories, setCategories] = useState([
-    { id: '1', name: 'Electronics', slug: 'electronics', description: 'Electronic devices and gadgets', status: 'Active', products: 24, priority: 1 },
-    { id: '2', name: 'Clothing', slug: 'clothing', description: 'Apparel and fashion items', status: 'Active', products: 36, priority: 2 },
-    { id: '3', name: 'Home & Kitchen', slug: 'home-kitchen', description: 'Home decor and kitchen appliances', status: 'Active', products: 18, priority: 3 },
-    { id: '4', name: 'Books', slug: 'books', description: 'Books and publications', status: 'Inactive', products: 12, priority: 4 },
-  ]);
+  // State for data
+  const [categories, setCategories] = useState([]);
 
-  // Mock data for placements
-  const [placements, setPlacements] = useState([
-    { id: '1', name: 'Homepage Featured', location: 'Homepage', priority: 1, status: 'Active', items: 8 },
-    { id: '2', name: 'New Arrivals', location: 'Homepage', priority: 2, status: 'Active', items: 12 },
-    { id: '3', name: 'Seasonal Offers', location: 'Category Page', priority: 1, status: 'Active', items: 6 },
-    { id: '4', name: 'Clearance Sale', location: 'Product Page', priority: 3, status: 'Inactive', items: 15 },
-  ]);
+  // State for placements
+  const [placements, setPlacements] = useState([]);
+
+  // Fetch categories
+  const fetchCategories = async () => {
+    setLoading(true);
+    try {
+      const response = await CategoryApiRequest.getAllWithParentAndAttributes();
+      const categoriesData = response.data.$values || [];
+
+      setCategories(categoriesData);
+      setParentCategories(
+        categoriesData.filter(cat => !cat.parentCategoryId)
+      );
+    } catch (error) {
+      message.error('Failed to fetch categories');
+      console.error(error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Fetch placements
+  const fetchPlacements = async () => {
+    setPlacementsLoading(true);
+    try {
+      const response = await PlacementApiRequest.getAllPlacements();
+      setPlacements(response.data.$values || []);
+    } catch (error) {
+      message.error('Failed to fetch placements');
+      console.error(error);
+    } finally {
+      setPlacementsLoading(false);
+    }
+  };
+
+  // Fetch attributes
+  const fetchAttributes = async () => {
+    setAttributesLoading(true);
+    try {
+      const response = await AttributeApiRequest.getAllAttributes();
+      setAttributes(response.data.$values || []);
+    } catch (error) {
+      message.error('Failed to fetch attributes');
+      console.error(error);
+    } finally {
+      setAttributesLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchCategories();
+    fetchAttributes();
+    fetchPlacements();
+  }, []);
+
+  // Filter categories based on search text
+  const filteredCategories = Array.isArray(categories)
+    ? categories.filter(cat =>
+      cat.name?.toLowerCase().includes(searchText.toLowerCase())
+    )
+    : [];
 
   // Category columns
   const categoryColumns = [
+    {
+      title: 'Image',
+      dataIndex: 'imageUrl',
+      key: 'imageUrl',
+      render: (imageUrl) => imageUrl ? <Image src={imageUrl} width={50} /> : 'No image',
+    },
     {
       title: 'Name',
       dataIndex: 'name',
@@ -42,56 +111,19 @@ const CategoryAndPlacement = () => {
       key: 'slug',
     },
     {
-      title: 'Description',
-      dataIndex: 'description',
-      key: 'description',
-      ellipsis: true,
-    },
-    {
-      title: 'Priority',
-      dataIndex: 'priority',
-      key: 'priority',
-    },
-    {
-      title: 'Products',
-      dataIndex: 'products',
-      key: 'products',
-    },
-    {
-      title: 'Status',
-      dataIndex: 'status',
-      key: 'status',
-      render: (status) => {
-        const color = status === 'Active' ? 'green' : 'red';
-        return <Tag color={color}>{status}</Tag>;
-      },
-    },
-    {
-      title: 'Actions',
+      title: '',
       key: 'actions',
       render: (_, record) => (
         <Space size="middle">
-          <Button 
-            icon={<ArrowUpOutlined />} 
+          <Button
+            icon={<EditOutlined />}
             size="small"
-            disabled={record.priority === 1}
-            onClick={() => handleMoveCategory(record.id, 'up')}
-          />
-          <Button 
-            icon={<ArrowDownOutlined />} 
-            size="small"
-            disabled={record.priority === categories.length}
-            onClick={() => handleMoveCategory(record.id, 'down')}
-          />
-          <Button 
-            icon={<EditOutlined />} 
-            size="small" 
             onClick={() => handleEditCategory(record)}
           />
-          <Button 
-            icon={<DeleteOutlined />} 
-            size="small" 
-            danger 
+          <Button
+            icon={<DeleteOutlined />}
+            size="small"
+            danger
             onClick={() => handleDeleteCategory(record.id)}
           />
         </Space>
@@ -107,55 +139,24 @@ const CategoryAndPlacement = () => {
       key: 'name',
     },
     {
-      title: 'Location',
-      dataIndex: 'location',
-      key: 'location',
-    },
-    {
-      title: 'Priority',
-      dataIndex: 'priority',
-      key: 'priority',
-    },
-    {
-      title: 'Items',
-      dataIndex: 'items',
-      key: 'items',
-    },
-    {
-      title: 'Status',
-      dataIndex: 'status',
-      key: 'status',
-      render: (status) => {
-        const color = status === 'Active' ? 'green' : 'red';
-        return <Tag color={color}>{status}</Tag>;
-      },
+      title: 'Description',
+      dataIndex: 'description',
+      key: 'description',
     },
     {
       title: 'Actions',
       key: 'actions',
       render: (_, record) => (
         <Space size="middle">
-          <Button 
-            icon={<ArrowUpOutlined />} 
+          <Button
+            icon={<EditOutlined />}
             size="small"
-            disabled={record.priority === 1}
-            onClick={() => handleMovePlacement(record.id, 'up')}
-          />
-          <Button 
-            icon={<ArrowDownOutlined />} 
-            size="small"
-            disabled={record.priority === placements.length}
-            onClick={() => handleMovePlacement(record.id, 'down')}
-          />
-          <Button 
-            icon={<EditOutlined />} 
-            size="small" 
             onClick={() => handleEditPlacement(record)}
           />
-          <Button 
-            icon={<DeleteOutlined />} 
-            size="small" 
-            danger 
+          <Button
+            icon={<DeleteOutlined />}
+            size="small"
+            danger
             onClick={() => handleDeletePlacement(record.id)}
           />
         </Space>
@@ -172,68 +173,104 @@ const CategoryAndPlacement = () => {
 
   const handleEditCategory = (record) => {
     setEditingRecord(record);
-    form.setFieldsValue(record);
+
+    // Extract attribute IDs from the categoryAttributes array
+    const attributes = record.categoryAttributes?.$values?.map(ca => ca.attribute?.id) || [];
+
+    form.setFieldsValue({
+      ...record,
+      categoryAttributes: attributes
+    });
+
     setCategoryModalVisible(true);
   };
 
   const handleDeleteCategory = (id) => {
-    Modal.confirm({
-      title: 'Are you sure you want to delete this category?',
-      content: 'This action cannot be undone.',
-      onOk: () => {
-        setCategories(categories.filter(category => category.id !== id));
-        message.success('Category deleted successfully');
-      },
-    });
+    setDeleteCategoryId(id);
+    setDeleteConfirmVisible(true);
   };
 
-  const handleCategorySubmit = () => {
-    form.validateFields().then(values => {
+  const handleDeleteCategoryConfirm = async () => {
+    setDeleting(true);
+    try {
+      await CategoryApiRequest.deleteCategory(deleteCategoryId);
+      fetchCategories();
+      message.success('Category deleted successfully');
+    } catch (error) {
+      message.error('Failed to delete category');
+      console.error(error);
+    } finally {
+      setDeleteConfirmVisible(false);
+      setDeleting(false);
+    }
+  };
+
+
+  const handleCategorySubmit = async () => {
+    try {
+      const values = await form.validateFields();
+      setSubmitting(true);
+
+      // Transform the selected attributes into the required format
+      const categoryAttributes = values.categoryAttributes?.map(attributeId => ({
+        attributeId,
+        id: editingRecord ? editingRecord.categoryAttributes?.$values?.find(ca => ca.attribute.id === attributeId)?.id : undefined
+      })) || [];
+
+      // Handle image upload
+      let imageUrl = editingRecord?.imageUrl;
+
+      if (values.image && values.image.fileList && values.image.fileList.length > 0) {
+        const file = values.image.fileList[0].originFileObj;
+
+        if (editingRecord && editingRecord.imageUrl) {
+          // Create form data for image update
+          const formData = new FormData();
+          formData.append('file', file);
+          // Update existing image
+          const response = await UploadApiRequest.updateImage(formData, editingRecord.imageUrl);
+          imageUrl = response.data;
+        } else {
+          // Create form data for new image upload
+          const formData = new FormData();
+          formData.append('file', file);
+          // Upload new image
+          const response = await UploadApiRequest.uploadImage(formData);
+          imageUrl = response.data;
+
+        }
+      }
+
+      const categoryData = {
+        ...values,
+        categoryAttributes,
+        imageUrl: imageUrl
+      };
+
+      // Remove the file object before sending to API
+      delete categoryData.image;
+
       if (editingRecord) {
         // Update existing category
-        setCategories(categories.map(category => 
-          category.id === editingRecord.id ? { ...category, ...values } : category
-        ));
+        await CategoryApiRequest.updateCategory(categoryData);
         message.success('Category updated successfully');
       } else {
         // Add new category
-        const newCategory = {
-          id: Date.now().toString(),
-          ...values,
-          products: 0,
-          priority: categories.length + 1,
-        };
-        setCategories([...categories, newCategory]);
+        await CategoryApiRequest.createCategory(categoryData);
         message.success('Category added successfully');
       }
+
       setCategoryModalVisible(false);
-    });
-  };
-
-  // Handle moving categories up and down
-  const handleMoveCategory = (id, direction) => {
-    setCategories((items) => {
-      const itemIndex = items.findIndex(item => item.id === id);
-      const newItems = [...items];
-      
-      if (direction === 'up' && itemIndex > 0) {
-        // Swap with the item above
-        [newItems[itemIndex - 1], newItems[itemIndex]] = [newItems[itemIndex], newItems[itemIndex - 1]];
-      } else if (direction === 'down' && itemIndex < items.length - 1) {
-        // Swap with the item below
-        [newItems[itemIndex], newItems[itemIndex + 1]] = [newItems[itemIndex + 1], newItems[itemIndex]];
+      fetchCategories();
+    } catch (error) {
+      if (!error.errorFields) {
+        message.error('Failed to save category');
+        console.error(error);
       }
-      
-      // Update priorities
-      return newItems.map((item, index) => ({
-        ...item,
-        priority: index + 1
-      }));
-    });
-    
-    message.success('Category order updated');
+    } finally {
+      setSubmitting(false);
+    }
   };
-
   // Handle placement operations
   const handleAddPlacement = () => {
     setEditingRecord(null);
@@ -251,33 +288,44 @@ const CategoryAndPlacement = () => {
     Modal.confirm({
       title: 'Are you sure you want to delete this placement?',
       content: 'This action cannot be undone.',
-      onOk: () => {
-        setPlacements(placements.filter(placement => placement.id !== id));
-        message.success('Placement deleted successfully');
+      onOk: async () => {
+        try {
+          await PlacementApiRequest.deletePlacement(id);
+          fetchPlacements();
+          message.success('Placement deleted successfully');
+        } catch (error) {
+          message.error('Failed to delete placement');
+          console.error(error);
+        }
       },
     });
   };
 
-  const handlePlacementSubmit = () => {
-    form.validateFields().then(values => {
+  const handlePlacementSubmit = async () => {
+    try {
+      const values = await form.validateFields();
+      setSubmitting(true);
+      
       if (editingRecord) {
         // Update existing placement
-        setPlacements(placements.map(placement => 
-          placement.id === editingRecord.id ? { ...placement, ...values } : placement
-        ));
+        await PlacementApiRequest.updatePlacement(values);
         message.success('Placement updated successfully');
       } else {
         // Add new placement
-        const newPlacement = {
-          id: Date.now().toString(),
-          ...values,
-          items: 0,
-        };
-        setPlacements([...placements, newPlacement]);
-        message.success('Placement added successfully');
+        await PlacementApiRequest.createPlacement(values);
+        message.success('Placement added successfully');8
       }
+      
       setPlacementModalVisible(false);
-    });
+      fetchPlacements();
+    } catch (error) {
+      if (!error.errorFields) {
+        message.error('Failed to save placement');
+        console.error(error);
+      }
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   // Handle moving placements up and down
@@ -285,7 +333,7 @@ const CategoryAndPlacement = () => {
     setPlacements((items) => {
       const itemIndex = items.findIndex(item => item.id === id);
       const newItems = [...items];
-      
+
       if (direction === 'up' && itemIndex > 0) {
         // Swap with the item above
         [newItems[itemIndex - 1], newItems[itemIndex]] = [newItems[itemIndex], newItems[itemIndex - 1]];
@@ -293,15 +341,16 @@ const CategoryAndPlacement = () => {
         // Swap with the item below
         [newItems[itemIndex], newItems[itemIndex + 1]] = [newItems[itemIndex + 1], newItems[itemIndex]];
       }
-      
-      // Update priorities
-      return newItems.map((item, index) => ({
-        ...item,
-        priority: index + 1
-      }));
+
+      return newItems;
     });
-    
+
     message.success('Placement order updated');
+  };
+
+  // Handle search
+  const handleSearch = (e) => {
+    setSearchText(e.target.value);
   };
 
   return (
@@ -314,47 +363,93 @@ const CategoryAndPlacement = () => {
         <Tabs activeKey={activeTab} onChange={setActiveTab}>
           <TabPane tab="Categories" key="1">
             <Flex justify="space-between" style={{ marginBottom: 16 }}>
-              <Input 
-                placeholder="Search categories" 
-                prefix={<SearchOutlined />} 
+              <Input
+                placeholder="Search categories"
+                prefix={<SearchOutlined />}
                 style={{ width: 300 }}
+                value={searchText}
+                onChange={handleSearch}
               />
-              <Button 
-                type="primary" 
-                icon={<PlusOutlined />}
-                onClick={handleAddCategory}
-              >
-                Add Category
-              </Button>
+              <Flex gap={8}>
+                <Button
+                  type="primary"
+                  icon={<PlusOutlined />}
+                  onClick={handleAddCategory}
+                >
+                  Add Category
+                </Button>
+
+                <Button
+                  variant="outlined"
+                  icon={<ReloadOutlined />}
+                  onClick={() => {
+                    fetchCategories();
+                  }}
+                  loading={loading}
+                >
+                </Button>
+              </Flex>
+
             </Flex>
-            <Table 
-              columns={categoryColumns} 
-              dataSource={categories.sort((a, b) => a.priority - b.priority)} 
+            <Table
+              columns={categoryColumns}
+              dataSource={filteredCategories}
               pagination={{ pageSize: 10 }}
               rowKey="id"
+              loading={loading}
+              expandable={{
+                expandedRowRender: (record) => {
+                  return (
+                    <Table
+                      showHeader={false}
+                      columns={categoryColumns}
+                      dataSource={record.subCategories?.$values || []}
+                      rowKey="id"
+                      pagination={false}
+                      style={{ margin: 0 }}
+                    />
+                  );
+                },
+                expandRowByClick: true,
+                rowExpandable: (record) =>
+                  record.subCategories?.$values &&
+                  record.subCategories.$values.length > 0
+              }}
             />
           </TabPane>
-          
+
           <TabPane tab="Placements" key="2">
             <Flex justify="space-between" style={{ marginBottom: 16 }}>
-              <Input 
-                placeholder="Search placements" 
-                prefix={<SearchOutlined />} 
+              <Input
+                placeholder="Search placements"
+                prefix={<SearchOutlined />}
                 style={{ width: 300 }}
               />
-              <Button 
-                type="primary" 
-                icon={<PlusOutlined />}
+              <Flex gap={8}>
+                <Button
+                  type="primary"
+                  icon={<PlusOutlined />}
                 onClick={handleAddPlacement}
               >
-                Add Placement
-              </Button>
+                  Add Placement
+                </Button>
+                <Button
+                  variant="outlined"
+                  icon={<ReloadOutlined />}
+                  onClick={() => {
+                    fetchPlacements();
+                  }}
+                  loading={placementsLoading}
+                >
+                </Button>
+              </Flex>
             </Flex>
-            <Table 
-              columns={placementColumns} 
-              dataSource={placements.sort((a, b) => a.priority - b.priority)} 
+            <Table
+              columns={placementColumns}
+              dataSource={placements}
               pagination={{ pageSize: 10 }}
               rowKey="id"
+              loading={placementsLoading}
             />
           </TabPane>
         </Tabs>
@@ -366,12 +461,63 @@ const CategoryAndPlacement = () => {
         open={categoryModalVisible}
         onCancel={() => setCategoryModalVisible(false)}
         onOk={handleCategorySubmit}
+        confirmLoading={submitting}
         destroyOnClose
+        width={700}
       >
         <Form
           form={form}
           layout="vertical"
         >
+          <Form.Item
+            name="id"
+            label="Category ID"
+            hidden
+          >
+            <Input placeholder="Category ID" />
+          </Form.Item>
+          <Form.Item
+            name="image"
+            label="Category Image"
+          >
+            <Upload
+              listType="picture-card"
+              maxCount={1}
+              beforeUpload={(file) => false}
+              onChange={(fileList) => {
+                if (fileList.length > 0) {
+                  form.setFieldsValue({
+                    image: fileList[0],
+                  });
+                }
+              }}
+            >
+              {editingRecord?.imageUrl && (
+                <div style={{ position: 'relative' }}>
+                  <Image src={editingRecord.imageUrl} width={100} />
+                  <div
+                    style={{
+                      position: 'absolute',
+                      top: 0,
+                      right: 0,
+                      background: 'rgba(0,0,0,0.5)',
+                      padding: '4px',
+                      borderRadius: '0 0 0 4px'
+                    }}
+                  >
+                    <EditOutlined style={{ color: 'white' }} />
+                  </div>
+                </div>
+              )}
+              {(!editingRecord?.imageUrl || (editingRecord?.imageUrl?.fileList?.length === 0)) && (
+                <div>
+                  <PlusOutlined />
+                  <div style={{ marginTop: 8 }}>Upload</div>
+                </div>
+              )}
+            </Upload>
+          </Form.Item>
+
           <Form.Item
             name="name"
             label="Category Name"
@@ -392,21 +538,33 @@ const CategoryAndPlacement = () => {
           >
             <Input.TextArea rows={4} placeholder="Enter description" />
           </Form.Item>
+
           <Form.Item
-            name="priority"
-            label="Priority"
-            rules={[{ required: true, message: 'Please enter priority' }]}
+            name="parentCategoryId"
+            label="Parent Category"
           >
-            <Input type="number" min={1} placeholder="Enter priority" />
+            <Select placeholder="Select parent category" allowClear loading={loading}>
+              {Array.isArray(parentCategories) ? parentCategories.map(category => (
+                // Don't allow a category to select itself as parent
+                editingRecord && category.id === editingRecord.id ? null :
+                  <Option key={category.id} value={category.id}>{category.name}</Option>
+              )).filter(Boolean) : null}
+            </Select>
           </Form.Item>
           <Form.Item
-            name="status"
-            label="Status"
-            rules={[{ required: true, message: 'Please select status' }]}
+            name="categoryAttributes"
+            label="Attributes"
           >
-            <Select placeholder="Select status">
-              <Option value="Active">Active</Option>
-              <Option value="Inactive">Inactive</Option>
+            <Select
+              mode="multiple"
+              placeholder="Select attributes"
+              allowClear
+              style={{ width: '100%' }}
+              loading={attributesLoading}
+            >
+              {attributes.map(attr => (
+                <Option key={attr.id} value={attr.id}>{attr.name}</Option>
+              ))}
             </Select>
           </Form.Item>
         </Form>
@@ -432,35 +590,23 @@ const CategoryAndPlacement = () => {
             <Input placeholder="Enter placement name" />
           </Form.Item>
           <Form.Item
-            name="location"
-            label="Location"
-            rules={[{ required: true, message: 'Please select location' }]}
+            name="description"
+            label="Description"
           >
-            <Select placeholder="Select location">
-              <Option value="Homepage">Homepage</Option>
-              <Option value="Category Page">Category Page</Option>
-              <Option value="Product Page">Product Page</Option>
-              <Option value="Checkout Page">Checkout Page</Option>
-            </Select>
-          </Form.Item>
-          <Form.Item
-            name="priority"
-            label="Priority"
-            rules={[{ required: true, message: 'Please enter priority' }]}
-          >
-            <Input type="number" min={1} placeholder="Enter priority" />
-          </Form.Item>
-          <Form.Item
-            name="status"
-            label="Status"
-            rules={[{ required: true, message: 'Please select status' }]}
-          >
-            <Select placeholder="Select status">
-              <Option value="Active">Active</Option>
-              <Option value="Inactive">Inactive</Option>
-            </Select>
+            <Input.TextArea rows={4} placeholder="Enter description" />
           </Form.Item>
         </Form>
+      </Modal>
+
+      {/* Delete Confirmation Modal */}
+      <Modal
+        title="Delete Category"
+        open={deleteConfirmVisible}
+        onCancel={() => setDeleteConfirmVisible(false)}
+        onOk={() => handleDeleteCategoryConfirm(deleteCategoryId)}
+        confirmLoading={deleting}
+      >
+        <p>Are you sure you want to delete this category?</p>
       </Modal>
     </div>
   );

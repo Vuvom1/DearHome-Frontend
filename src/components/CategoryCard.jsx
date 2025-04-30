@@ -3,11 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import { URLS } from '../constants/urls';
 const { Title } = Typography;
 
-const CategoryCard = ({ image, title }) => {
+const CategoryCard = ({ image, title, slug}) => {
     const navigate = useNavigate();
     return (
         <Card
-            onClick={() => navigate(URLS.CUSTOMER.CATEGORIE_DETAILS(title))}
+            onClick={() => navigate(URLS.CUSTOMER.CATEGORY_DETAIL(slug))}
             style={{ 
                 width: '100%', 
                 border: 'none',

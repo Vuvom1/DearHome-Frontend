@@ -1,15 +1,78 @@
-import { Typography, Card, Row, Col, Input, Select, Flex, Image, Breadcrumb } from 'antd';
-import { useState } from 'react';
+import { Typography, Card, Row, Col, Input, Select, Flex, Image, Breadcrumb, Pagination, Spin } from 'antd';
+import { useState, useEffect } from 'react';
 import ProductCard from '../../components/ProductCard';
 import CategoryCard from '../../components/CategoryCard';
 import ComboCard from '../../components/ComboCard';
 import { URLS } from '../../constants/urls';
+import { CategoryApiRequest, ProductApiRequest } from '../../api/ApiRequests';
+
 const { Title, Text } = Typography;
 const { Search } = Input;
 
 const Products = () => {
     const [searchTerm, setSearchTerm] = useState('');
+    const [categories, setCategories] = useState([]);
     const [category, setCategory] = useState('all');
+    const [products, setProducts] = useState([]);
+    const [hotProducts, setHotProducts] = useState([]);
+    const [loading, setLoading] = useState(false);
+    const [pagination, setPagination] = useState({
+        current: 1,
+        pageSize: 8,
+        total: 0
+    });
+
+    const fetchCategories = async () => {
+        try {
+            const response = await CategoryApiRequest.getAllCategories();
+            setCategories(response.data.$values);
+        } catch (error) {
+            console.error("Error fetching categories:", error);
+        }
+    }
+
+    const fetchProducts = async (page = pagination.current, pageSize = pagination.pageSize) => {
+        setLoading(true);
+        try {
+            // Calculate skip for pagination (0-based index for the API)
+            const skip = (page - 1) * pageSize;
+            
+            // Use the updated API request with pagination parameters
+            const response = await ProductApiRequest.getAllProducts(skip, pageSize);
+            
+            // Assuming the API returns pagination information
+            setProducts(response.data.$values);
+            setPagination({
+                ...pagination,
+                current: page,
+                pageSize: pageSize,
+                total: response.data.totalCount || response.data.$values.length
+            });
+            
+            // Set hot products (this can be based on your business logic)
+            setHotProducts(response.data.$values.filter(p => p.isHot || p.discountPercentage > 10));
+        } catch (error) {
+            console.error("Error fetching products:", error);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        fetchCategories();
+        fetchProducts();
+    }, []);
+
+    const handlePageChange = (page, pageSize) => {
+        fetchProducts(page, pageSize);
+    };
+
+    // If we have a search term, filter the products on the client side
+    // For a real app, you might want to send the search to the API
+    const filteredProducts = searchTerm ? 
+        products.filter(product => 
+            product.name.toLowerCase().includes(searchTerm.toLowerCase())) : 
+        products;
 
     const combos = [
         {
@@ -33,57 +96,6 @@ const Products = () => {
     const filteredCombos = combos.filter(combo => {
         const matchesSearch = combo.name.toLowerCase().includes(searchTerm.toLowerCase());
         return matchesSearch;
-    });
-
-    // Mock products data - replace with real API call later
-    const products = [
-        {
-            id: 1,
-            name: 'Modern Sofa',
-            price: 799.99,
-            category: 'Furniture',
-            image: 'https://product.hstatic.net/1000280685/product/den_noti_757ede804a0040c680335ad6ab94b796_compact.png'
-        },
-        {
-            id: 2,
-            name: 'Smart LED Light',
-            price: 49.99,
-            category: 'Electronics',
-            image: 'https://product.hstatic.net/1000280685/product/den_noti_757ede804a0040c680335ad6ab94b796_compact.png'
-        },
-        {
-            id: 3,
-            name: 'Coffee Table',
-            price: 299.99,
-            category: 'Furniture',
-            image: 'https://product.hstatic.net/1000280685/product/den_noti_757ede804a0040c680335ad6ab94b796_compact.png'
-        },
-        {
-            id: 4,
-            name: 'Wall Art',
-            price: 89.99,
-            category: 'Decor',
-            image: 'https://product.hstatic.net/1000280685/product/den_noti_757ede804a0040c680335ad6ab94b796_compact.png'
-        }
-    ];
-
-    const categories = [
-        { value: 'all', label: 'All Categories', image: 'https://product.hstatic.net/1000280685/product/den_noti_757ede804a0040c680335ad6ab94b796_compact.png' },
-        { value: 'furniture', label: 'Furniture', image: 'https://product.hstatic.net/1000280685/product/den_noti_757ede804a0040c680335ad6ab94b796_compact.png' },
-        { value: 'electronics', label: 'Electronics', image: 'https://product.hstatic.net/1000280685/product/den_noti_757ede804a0040c680335ad6ab94b796_compact.png' },
-        { value: 'decor', label: 'Decor', image: 'https://product.hstatic.net/1000280685/product/den_noti_757ede804a0040c680335ad6ab94b796_compact.png' },
-        { value: 'lighting', label: 'Lighting', image: 'https://product.hstatic.net/1000280685/product/den_noti_757ede804a0040c680335ad6ab94b796_compact.png' },
-        { value: 'home-accessories', label: 'Home Accessories', image: 'https://product.hstatic.net/1000280685/product/den_noti_757ede804a0040c680335ad6ab94b796_compact.png' },
-        { value: 'kitchen', label: 'Kitchen', image: 'https://product.hstatic.net/1000280685/product/den_noti_757ede804a0040c680335ad6ab94b796_compact.png' },
-        { value: 'bathroom', label: 'Bathroom', image: 'https://product.hstatic.net/1000280685/product/den_noti_757ede804a0040c680335ad6ab94b796_compact.png' },
-        { value: 'bedroom', label: 'Bedroom', image: 'https://product.hstatic.net/1000280685/product/den_noti_757ede804a0040c680335ad6ab94b796_compact.png' },
-        
-    ];
-
-    const filteredProducts = products.filter(product => {
-        const matchesSearch = product.name.toLowerCase().includes(searchTerm.toLowerCase());
-        const matchesCategory = category === 'all' || product.category.toLowerCase() === category;
-        return matchesSearch && matchesCategory;
     });
 
     return (
@@ -119,13 +131,11 @@ const Products = () => {
             <div>
                 <Title level={3}>Hot Sale</Title>
                 <Row gutter={[16, 16]}>
-                    {filteredProducts
-                        .filter(product => product.price > 200) // Example condition for "hot" products
-                        .map(product => (
-                            <Col xs={12} sm={12} md={8} lg={6} key={product.id}>
-                                <ProductCard product={product} />
-                            </Col>
-                        ))}
+                    {hotProducts.map(product => (
+                        <Col xs={12} sm={12} md={8} lg={6} key={product.id}>
+                            <ProductCard product={product} />
+                        </Col>
+                    ))}
                 </Row>
             </div>
 
@@ -133,11 +143,10 @@ const Products = () => {
             <div>
                 <Title level={3}>Shop by Category</Title>
                 <Row gutter={[32, 16]}>
-                    {categories
-                        .filter(cat => cat.value !== 'all')
+                    {categories?.length > 0 && categories
                         .map(category => (
                             <Col xs={12} sm={8} md={6} lg={4} key={category.value}>
-                                <CategoryCard image={category.image} title={category.label} />
+                                <CategoryCard image={category.imageUrl} title={category.name} slug={category.slug} />
                             </Col>
                         ))}
                 </Row>
@@ -165,7 +174,7 @@ const Products = () => {
                 <Col xs={24} sm={24} md={12} lg={12}>
                     <Row gutter={[32, 16]} style={{ marginTop: '20px' }}>
                         {
-                            products.map(product => (
+                            filteredProducts.map(product => (
                                 <Col xs={12} sm={12} md={12} lg={12} key={product.id}>
                                 <ProductCard product={product} />
                             </Col>
@@ -174,6 +183,15 @@ const Products = () => {
                     </Row>
                 </Col>
             </Row>
+
+            <div style={{ textAlign: 'center', marginTop: '20px' }}>
+                <Pagination 
+                    current={pagination.current} 
+                    pageSize={pagination.pageSize} 
+                    total={pagination.total} 
+                    onChange={handlePageChange} 
+                />
+            </div>
         </Flex>
     );
 };
