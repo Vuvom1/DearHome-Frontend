@@ -1,11 +1,11 @@
 import { useState, useEffect, use } from 'react';
-import { Typography, Row, Col, Button, Form, Input, Radio, Card, Flex, Divider, Avatar, Select, Space, Breadcrumb, Skeleton, Modal, App } from 'antd';
+import { Typography, Row, Col, Button, Form, Input, Radio, Card, Flex, Divider, Avatar, Select, Space, Breadcrumb, Skeleton, Modal, App, Tag } from 'antd';
 import { URLS } from '../../constants/urls';
 import { useSelector } from 'react-redux';
 import { authApiRequest } from '../../api/ApiRequests';
 import { shippingApiRequest } from '../../api/ApiRequests';
 import { PaymentMethods } from '../../constants/PaymentMethods';
-import { orderApiRequest } from '../../api/ApiRequests';
+import { orderApiRequest, promotionApiRequest } from '../../api/ApiRequests';
 import { useDispatch } from 'react-redux';
 import { clearCart } from '../../store/actions/CartAction';
 import { useNavigate } from 'react-router-dom';
@@ -20,17 +20,50 @@ const Checkout = () => {
     const userId = useSelector(state => state.auth.user.nameid);
     const [user, setUser] = useState(null);
     const [address, setAddress] = useState(null);
+    const [formattedAddress, setFormattedAddress] = useState(null);
     const [paymentMethod, setPaymentMethod] = useState();
     const [shippingMethod, setShippingMethod] = useState();
     const [shippingMethods, setShippingMethods] = useState([]);
-    const [addresses, setAddresses] = useState([]);
     const [selectAddressVisible, setSelectAddressVisible] = useState(false);
-    const [cities, setCities] = useState([]);
-    const [districts, setDistricts] = useState([]);
-    const [wards, setWards] = useState([])
     const [isCheckout, setIsCheckout] = useState(false);
+    const [promotions, setPromotions] = useState([]);
+    const [selectedPromotion, setSelectedPromotion] = useState(null);
+    const [promotionModalVisible, setPromotionModalVisible] = useState(false);
+    const [addressCache, setAddressCache] = useState({});
 
     const cartItems = useSelector(state => state.cart.items);
+
+    const formatDisplayAddress = (addressData) => {
+        if (!addressData) return 'Please select an address';
+        
+        if (addressData.city?.name && addressData.district?.name && addressData.ward?.name) {
+            return `${addressData.street}, ${addressData.ward.name}, ${addressData.district.name}, ${addressData.city.name}`;
+        }
+        
+        return `${addressData.street}, ${addressData.ward || ''}, ${addressData.district || ''}, ${addressData.city || ''}`;
+    };
+
+    const getFormattedAddress = async (addressId) => {
+        if (addressCache[addressId]) {
+            return addressCache[addressId];
+        }
+        
+        try {
+            const response = await shippingApiRequest.getFormattedAddress(addressId);
+            const formattedAddr = response.data;
+            
+            setAddressCache(prev => ({
+                ...prev,
+                [addressId]: formattedAddr
+            }));
+            
+            return formattedAddr;
+        } catch (error) {
+            console.error('Error fetching formatted address:', error);
+            message.error('Failed to load address details');
+            return null;
+        }
+    };
 
     const fetchUserProfile = async () => {
         try {
@@ -58,44 +91,44 @@ const Checkout = () => {
         }
     };
 
-    const fetchCities = async () => {
-        try {
-            const response = await shippingApiRequest.getCities();
-            return response.data;
-        } catch (error) {
-            console.error('Error fetching cities:', error);
+    const handleAddressSelect = async (selectedAddress) => {
+        setAddress(selectedAddress);
+        setSelectAddressVisible(false);
+        
+        const formatted = await getFormattedAddress(selectedAddress.id);
+        if (formatted) {
+            setFormattedAddress(formatted);
         }
     };
 
-    const onSuccessPayOS = (event) => {
-        console.log('Payment successful:', event);  
-        message.success('Payment successful');
-        navigate(URLS.CUSTOMER.HOME);
-    };
-
-    const onExitPayOS = (event) => {
-        console.log('Payment exited:', event);
-        message.error('Payment exited');
-    };
-
-    const onCancelPayOS = (event) => {
-        console.log('Payment cancelled:', event);
-        message.error('Payment cancelled');
-    };
-
-    const getCityName = (cityId) => {
-        const city = cities?.find(city => city.id === cityId);
-        return city ? city.name : '';
-    };
-
+    const fetchUsablePromotions = async () => {
+        try {
+            const response = await promotionApiRequest.getUsablePromotionsByUserId(userId);
+            setPromotions(response.data.$values);
+        } catch (error) {
+            console.error('Error fetching promotions:', error);
+            message.error('Failed to load promotions');
+        }
+    }
+    
     useEffect(() => {
         fetchUserProfile();
     }, []);
 
     useEffect(() => {
         if (user && user.addresses && user.addresses.$values.length > 0) {
-            setAddress(user.addresses.$values.find(addr => addr.isDefault));
+            const defaultAddress = user.addresses.$values.find(addr => addr.isDefault);
+            setAddress(defaultAddress);
+            
+            if (defaultAddress) {
+                getFormattedAddress(defaultAddress.id).then(formattedAddr => {
+                    if (formattedAddr) {
+                        setFormattedAddress(formattedAddr);
+                    }
+                });
+            }
         }
+        fetchUsablePromotions();
     }, [user]);
 
     useEffect(() => {
@@ -103,25 +136,41 @@ const Checkout = () => {
             calculateShippingCost(address).then(response => {
                 setShippingMethods(response);
             });
+            
+            getFormattedAddress(address.id).then(formattedAddr => {
+                if (formattedAddr) {
+                    setFormattedAddress(formattedAddr);
+                }
+            });
         }
     }, [address]);
-
-    useEffect(() => {
-        fetchCities().then(response => {
-            setCities(response);
-        });
-    }, []);
 
     const calculateSubtotal = () => {
         return cartItems.reduce((total, item) => total + ((item.item.product.price + item.item.priceAdjustment) * item.quantity), 0);
     };
 
     const calculateTotal = () => {
-        return calculateSubtotal();
+        return calculateSubtotal() - calculateDiscount();
     };
 
-    const onFinish = async (values) => {
+    const handleApplyPromotion = async () => {
+           promotionModalVisible ? setPromotionModalVisible(false) : setPromotionModalVisible(true);
+    }
 
+    const handlePromotionSelect = async (promotion) => {
+        setSelectedPromotion(promotion);
+        setPromotionModalVisible(false);
+        message.success(`Promotion ${promotion.name} applied successfully`);
+    }
+
+    const calculateDiscount = () => {
+        if (selectedPromotion) {
+            return (calculateSubtotal() * selectedPromotion.discountPercentage) / 100;
+        }
+        return 0;
+    }
+
+    const onFinish = async (values) => {
         setIsCheckout(true);
 
         const orderData = {
@@ -131,20 +180,18 @@ const Checkout = () => {
             shippingMethod: shippingMethod,
             paymentMethod: paymentMethod,
             shippingRate: shippingMethod.id,
+            promotionId: selectedPromotion?.id,
             orderDetails: cartItems.map(item => ({
                 variantId: item.item.id,
                 quantity: item.quantity
             }))
         };
 
-        // console.log(URLS.CUSTOMER.VERIFY_PAYMENT_NAV);
-
         await orderApiRequest.createOrder(orderData, URLS.APP_URL)
             .then(response => {
                 message.success('Order created successfully');
 
                 if (paymentMethod === PaymentMethods.BANK_TRANSFER) {
-                    //Ridirect to payos link
                     window.location.href = response.data.checkoutUrl;
                 } else {
                     navigate(URLS.CUSTOMER.HOME);
@@ -160,7 +207,7 @@ const Checkout = () => {
             );
     };
 
-    if (user === null && cities.length === 0 && districts.length === 0 && wards.length === 0) {
+    if (user === null) {
         return (
             <Skeleton active paragraph={{ rows: 10 }} />
         );
@@ -237,10 +284,17 @@ const Checkout = () => {
                                                 onClick={() => setSelectAddressVisible(true)}
                                                 hoverable
                                             >
-                                                <Flex justify='space-between' gap={8}>
-                                                    <Typography.Text>{address?.street}, {address?.ward}, {address?.district}, {address?.city}, {getCityName(address?.city)}</Typography.Text>
-                                                    <Typography type='link'>Change address</Typography>
-                                                </Flex>
+                                                {
+                                                    address === null ? (
+                                                        <Typography.Text type="secondary">Please select an address</Typography.Text>
+                                                    ) : (
+                                                        <Flex vertical gap={4}>
+                                                            <Typography.Text>
+                                                                {formatDisplayAddress(formattedAddress || address)}
+                                                            </Typography.Text>
+                                                        </Flex>
+                                                    )
+                                                }
                                             </Card>
 
                                         </Space>
@@ -258,44 +312,52 @@ const Checkout = () => {
                                         style={{ width: '100%' }}
                                     >
                                         <Space direction="vertical" style={{ width: '100%' }}>
-                                            {shippingMethods?.map((method, index) => (
-                                                <Card
-                                                    key={index}
-                                                    onClick={() => setShippingMethod(method)}
-                                                    style={{
-                                                        borderColor: shippingMethod === method ? '#1890ff' : '#f0f0f0',
-                                                        transition: 'all 0.3s',
-                                                        marginBottom: 8,
-                                                        boxShadow: shippingMethod === method ? '0 0 0 2px rgba(24, 144, 255, 0.2)' : 'none'
-                                                    }}
-                                                    hoverable
-                                                >
-                                                    <Radio value={method} style={{ width: '100%' }} >
-                                                        <Flex align="center" justify="space-between" style={{ width: '100%' }}>
-                                                            <Flex align="center" gap={16}>
-                                                                <Avatar
-                                                                    src={method.carrier_logo}
-                                                                    alt={method.carrier_name}
-                                                                    size={50}
-                                                                    shape="square"
-                                                                    style={{ padding: 4, border: '1px solid #f0f0f0' }}
-                                                                />
-                                                                <Flex vertical gap={4}>
+                                            {
+                                                address === null ? (
+                                                    <Card style={{ textAlign: 'center' }}>
+                                                        <Typography.Text type="secondary">Please select an address to see available shipping methods</Typography.Text>
+                                                    </Card>
+                                                ) : (
+                                                    shippingMethods?.map((method, index) => (
+                                                        <Card
+                                                            key={index}
+                                                            onClick={() => setShippingMethod(method)}
+                                                            style={{
+                                                                borderColor: shippingMethod === method ? '#1890ff' : '#f0f0f0',
+                                                                transition: 'all 0.3s',
+                                                                marginBottom: 8,
+                                                                boxShadow: shippingMethod === method ? '0 0 0 2px rgba(24, 144, 255, 0.2)' : 'none'
+                                                            }}
+                                                            hoverable
+                                                        >
+                                                            <Radio value={method} style={{ width: '100%' }} >
+                                                                <Flex align="center" justify="space-between" style={{ width: '100%' }}>
+                                                                    <Flex align="center" gap={16}>
+                                                                        <Avatar
+                                                                            src={method.carrier_logo}
+                                                                            alt={method.carrier_name}
+                                                                            size={50}
+                                                                            shape="square"
+                                                                            style={{ padding: 4, border: '1px solid #f0f0f0' }}
+                                                                        />
+                                                                        <Flex vertical gap={4}>
+                                                                            <Typography.Text strong style={{ fontSize: 16 }}>
+                                                                                {method.carrier_name}
+                                                                            </Typography.Text>
+                                                                            <Typography.Text type="secondary" style={{ fontSize: 14 }}>
+                                                                                {method.expected}
+                                                                            </Typography.Text>
+                                                                        </Flex>
+                                                                    </Flex>
                                                                     <Typography.Text strong style={{ fontSize: 16 }}>
-                                                                        {method.carrier_name}
-                                                                    </Typography.Text>
-                                                                    <Typography.Text type="secondary" style={{ fontSize: 14 }}>
-                                                                        {method.expected}
+                                                                        {method.total_fee.toLocaleString('vi-VN')}₫
                                                                     </Typography.Text>
                                                                 </Flex>
-                                                            </Flex>
-                                                            <Typography.Text strong style={{ fontSize: 16 }}>
-                                                                {method.total_fee.toLocaleString('vi-VN')}₫
-                                                            </Typography.Text>
-                                                        </Flex>
-                                                    </Radio>
-                                                </Card>
-                                            ))}
+                                                            </Radio>
+                                                        </Card>
+                                                    ))
+                                                )
+                                            }
                                         </Space>
                                     </Radio.Group>
                                 </Form.Item>
@@ -371,8 +433,8 @@ const Checkout = () => {
 
                                     <Divider />
                                     <Flex gap={8} justify="space-between">
-                                        <Input placeholder="Enter coupon code" />
-                                        <Button type="primary">Apply</Button>
+                                        <Input value={selectedPromotion?.code} placeholder="Enter coupon code" />
+                                        <Button type="primary" onClick={handleApplyPromotion}>Select</Button>
                                     </Flex>
 
                                     <Divider />
@@ -386,7 +448,7 @@ const Checkout = () => {
                                     <Flex justify='space-between'>
                                         <Typography.Text>Discount</Typography.Text>
                                         <Typography.Text strong>
-                                            {(calculateSubtotal()).toLocaleString('vi-VN')}₫
+                                            {calculateDiscount().toLocaleString('vi-VN')}₫
                                         </Typography.Text>
                                     </Flex>
                                     <Flex justify="space-between">
@@ -420,15 +482,60 @@ const Checkout = () => {
                 width={800}
             >
                 <Space direction="vertical" style={{ width: '100%' }}>
-                    {user?.addresses?.$values.map((address, index) => (
+
+                    {user?.addresses?.$values.length === 0 ? (
+                        <Card style={{ textAlign: 'center' }}>
+                            <Typography.Text type="secondary">No addresses found. Please</Typography.Text>
+                            <Button type="link" onClick={() => navigate(URLS.CUSTOMER.PROFILE)}>add an address</Button>
+                        </Card>
+                    ) : (
+                    user?.addresses?.$values.map((addr, index) => (
                         <Card
                             key={index}
                             hoverable
-                            onClick={() => { setAddress(address); setSelectAddressVisible(false); }}
+                            onClick={() => handleAddressSelect(addr)}
                         >
                             <Flex vertical>
-                                <Typography.Text>{address.street}, {address.ward}, {address.district}, {address.city}</Typography.Text>
+                                <Typography.Text>
+                                    {formatDisplayAddress(addressCache[addr.id] || addr)}
+                                </Typography.Text>
                             </Flex>
+                        </Card>
+                    ))
+                )}
+                </Space>
+            </Modal>
+
+            <Modal
+                title="Select Promotion"
+                open={promotionModalVisible}
+                onCancel={() => setPromotionModalVisible(false)}
+                footer={null}
+                width={800}
+            >
+                <Space direction="vertical" style={{ width: '100%' }}>
+                    {promotions.map((promotion, index) => (
+                        <Card
+                            key={index}
+                            hoverable
+                            onClick={() => handlePromotionSelect(promotion)}
+                        >
+                            <Row gutter={[16, 16]}>
+                                <Col xs={24} sm={4}>
+                                <Tag color={promotion.discountType === 'Percentage' ? 'green' : 'blue'}>
+                                   {promotion.discountPercentage}%
+                                </Tag>
+                                </Col>
+                                <Col xs={24} sm={20}>
+                                    <Flex vertical gap={4}>
+                                    <Typography.Text strong>{promotion.code}</Typography.Text>
+                                    <Typography.Text strong>{promotion.name}</Typography.Text>
+                                    <Typography.Text type="secondary">{promotion.description}</Typography.Text>
+                                    </Flex>
+                                </Col>
+                                
+                                <Button type="link" onClick={() => handlePromotionSelect(promotion)}>Apply</Button>
+                            </Row>
                         </Card>
                     ))}
                 </Space>

@@ -1,52 +1,96 @@
 import React, { useState, useEffect } from 'react';
-import { Table, Tag, Button, Space, Card, Typography, message, Modal, Form, Input, DatePicker, InputNumber, Select, Popconfirm } from 'antd';
-import { PlusOutlined, EditOutlined, DeleteOutlined, EyeOutlined, ReloadOutlined } from '@ant-design/icons';
+import { Table, Tag, Button, Space, Card, Typography, message, Modal, Form, Input, DatePicker, InputNumber, Select, Popconfirm, Switch, Row, Col, App, Flex, Image } from 'antd';
+import { PlusOutlined, EditOutlined, DeleteOutlined, EyeOutlined, ReloadOutlined, SearchOutlined } from '@ant-design/icons';
 import moment from 'moment';
+import { promotionApiRequest, ProductApiRequest } from '../../../api/ApiRequests';
 
 const { Title } = Typography;
 const { RangePicker } = DatePicker;
 const { Option } = Select;
+const { Search } = Input;
 
 const Promotions = () => {
+  const {message} = App.useApp();
   const [promotions, setPromotions] = useState([]);
   const [loading, setLoading] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
   const [modalType, setModalType] = useState('add'); // 'add', 'edit', 'view'
   const [selectedPromotion, setSelectedPromotion] = useState(null);
+  const [pagination, setPagination] = useState({
+    current: 1,
+    pageSize: 10,
+    total: 0,
+  });
+  const [searchText, setSearchText] = useState('');
   const [form] = Form.useForm();
+  const [products, setProducts] = useState([]);
+  const [productsLoading, setProductsLoading] = useState(false);
+  const [selectedProductIds, setSelectedProductIds] = useState([]);
 
   useEffect(() => {
     fetchPromotions();
-  }, []);
+  }, [pagination.current, searchText]);
 
   const fetchPromotions = async () => {
     setLoading(true);
-    // Simulate API call
-    setTimeout(() => {
-      setPromotions(mockPromotions);
+    try {
+      const response = await promotionApiRequest.getAllPromotions({
+        page: pagination.current,
+        pageSize: pagination.pageSize,
+        search: searchText,
+      });
+      setPromotions(response.data.$values);
+      setPagination({
+        ...pagination,
+        total: response.data.totalCount || response.data.$values.length,
+      });
+    } catch (error) {
+      console.error('Error fetching promotions:', error);
+      message.error('Failed to fetch promotions');
+    } finally {
       setLoading(false);
-    }, 500);
+    }
+  };
+
+  const fetchProducts = async () => {
+    setProductsLoading(true);
+    try {
+      const response = await ProductApiRequest.getAllProducts(0, 100); // Fetch up to 100 products
+      setProducts(response.data.$values || []);
+    } catch (error) {
+      console.error('Error fetching products:', error);
+      message.error('Failed to fetch products');
+    } finally {
+      setProductsLoading(false);
+    }
   };
 
   const handleAddPromotion = () => {
     setModalType('add');
     form.resetFields();
+    setSelectedProductIds([]);
     setModalVisible(true);
+    // Fetch products when adding a new promotion
+    fetchProducts();
   };
 
   const handleEditPromotion = (promotion) => {
     setModalType('edit');
     setSelectedPromotion(promotion);
+    setSelectedProductIds(promotion.products.$values.map(product => product.id) || []);
     form.setFieldsValue({
       ...promotion,
       dateRange: [moment(promotion.startDate), moment(promotion.endDate)],
     });
     setModalVisible(true);
+    // Fetch products when editing a promotion
+    fetchProducts();
   };
 
   const handleViewPromotion = (promotion) => {
     setModalType('view');
     setSelectedPromotion(promotion);
+    setSelectedProductIds(promotion.productIds || []);
     form.setFieldsValue({
       ...promotion,
       dateRange: [moment(promotion.startDate), moment(promotion.endDate)],
@@ -56,8 +100,6 @@ const Promotions = () => {
 
   const handleDeletePromotion = async (promotionId) => {
     try {
-      // Replace with actual API call
-      // await axios.delete(`/api/admin/promotions/${promotionId}`);
       setPromotions(promotions.filter(item => item.id !== promotionId));
       message.success('Promotion deleted successfully');
     } catch (error) {
@@ -75,23 +117,19 @@ const Promotions = () => {
       };
       delete promotionData.dateRange;
 
+      console.log('Promotion Data:', promotionData);
+
+      // Add product IDs if type is Product
+      if (values.type === 'Product' && selectedProductIds.length > 0) {
+        promotionData.productIds = selectedProductIds;
+      }
+
       if (modalType === 'add') {
-        // Replace with actual API call
-        // await axios.post('/api/admin/promotions', promotionData);
-        const newPromotion = {
-          id: Math.floor(Math.random() * 1000),
-          ...promotionData,
-          status: 'active',
-        };
-        setPromotions([...promotions, newPromotion]);
+        await promotionApiRequest.createPromotion(promotionData);
         message.success('Promotion added successfully');
       } else if (modalType === 'edit') {
-        // Replace with actual API call
-        // await axios.put(`/api/admin/promotions/${selectedPromotion.id}`, promotionData);
-        const updatedPromotions = promotions.map(item => 
-          item.id === selectedPromotion.id ? { ...item, ...promotionData } : item
-        );
-        setPromotions(updatedPromotions);
+        await promotionApiRequest.updatePromotion(selectedPromotion.id, promotionData);
+        fetchPromotions();
         message.success('Promotion updated successfully');
       }
       
@@ -102,43 +140,39 @@ const Promotions = () => {
     }
   };
 
-  const getStatusColor = (status) => {
-    switch (status.toLowerCase()) {
-      case 'active':
-        return 'green';
-      case 'upcoming':
-        return 'blue';
-      case 'expired':
-        return 'red';
-      case 'inactive':
-        return 'gray';
-      default:
-        return 'default';
-    }
+  const handleSearch = (value) => {
+    setSearchText(value);
+    setPagination({ ...pagination, current: 1 });
+  };
+
+  const handleTableChange = (pagination) => {
+    setPagination({
+      ...pagination,
+      current: pagination.current,
+    });
+  };
+
+  const handleProductSelection = (selectedIds) => {
+    setSelectedProductIds(selectedIds);
   };
 
   const columns = [
     {
-      title: 'ID',
-      dataIndex: 'id',
-      key: 'id',
+      title: 'Code',
+      dataIndex: 'code',
+      key: 'code',
     },
     {
       title: 'Name',
       dataIndex: 'name',
       key: 'name',
     },
+   
     {
-      title: 'Type',
-      dataIndex: 'type',
-      key: 'type',
-      render: (type) => type.charAt(0).toUpperCase() + type.slice(1),
-    },
-    {
-      title: 'Value',
-      dataIndex: 'value',
-      key: 'value',
-      render: (value, record) => record.type === 'percentage' ? `${value}%` : `$${value}`,
+      title: 'Discount',
+      dataIndex: 'discountPercentage',
+      key: 'discountPercentage',
+      render: (value) => `${value}%`,
     },
     {
       title: 'Start Date',
@@ -154,13 +188,18 @@ const Promotions = () => {
     },
     {
       title: 'Status',
-      dataIndex: 'status',
-      key: 'status',
-      render: (status) => (
-        <Tag color={getStatusColor(status)}>
-          {status.toUpperCase()}
+      dataIndex: 'isActive',
+      key: 'isActive',
+      render: (isActive) => (
+        <Tag color={isActive ? 'green' : 'red'}>
+          {isActive ? 'ACTIVE' : 'INACTIVE'}
         </Tag>
       ),
+    },
+    {
+      title: 'Ussage',
+      dataIndex: 'ussage',
+      key: 'usage',
     },
     {
       title: 'Actions',
@@ -207,62 +246,6 @@ const Promotions = () => {
     }
   };
 
-  // Mock data
-  const mockPromotions = [
-    {
-      id: 1,
-      name: 'Summer Sale',
-      code: 'SUMMER2023',
-      type: 'percentage',
-      value: 20,
-      minPurchase: 50,
-      maxDiscount: 100,
-      startDate: '2023-06-01',
-      endDate: '2023-08-31',
-      status: 'active',
-      description: 'Summer season discount for all products',
-    },
-    {
-      id: 2,
-      name: 'New Customer',
-      code: 'WELCOME10',
-      type: 'percentage',
-      value: 10,
-      minPurchase: 0,
-      maxDiscount: 50,
-      startDate: '2023-01-01',
-      endDate: '2023-12-31',
-      status: 'active',
-      description: 'Discount for new customers',
-    },
-    {
-      id: 3,
-      name: 'Holiday Special',
-      code: 'HOLIDAY25',
-      type: 'percentage',
-      value: 25,
-      minPurchase: 100,
-      maxDiscount: 200,
-      startDate: '2023-12-01',
-      endDate: '2023-12-31',
-      status: 'upcoming',
-      description: 'Special discount for holiday season',
-    },
-    {
-      id: 4,
-      name: 'Free Shipping',
-      code: 'FREESHIP',
-      type: 'fixed',
-      value: 15,
-      minPurchase: 75,
-      maxDiscount: 15,
-      startDate: '2023-05-01',
-      endDate: '2023-05-31',
-      status: 'expired',
-      description: 'Free shipping on orders over $75',
-    },
-  ];
-
   return (
     <div>
       <Card
@@ -280,17 +263,30 @@ const Promotions = () => {
               icon={<ReloadOutlined />}
               onClick={fetchPromotions}
             >
-              Refresh
             </Button>
           </Space>
         }
       >
+        <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
+          <Col span={12}>
+            <Search
+              placeholder="Search promotions"
+              onSearch={handleSearch}
+              enterButton={<SearchOutlined />}
+            />
+          </Col>
+        </Row>
         <Table
           columns={columns}
           dataSource={promotions}
           rowKey="id"
           loading={loading}
-          pagination={{ pageSize: 10 }}
+          pagination={{
+            current: pagination.current,
+            pageSize: pagination.pageSize,
+            total: pagination.total,
+          }}
+          onChange={handleTableChange}
         />
       </Card>
 
@@ -330,52 +326,92 @@ const Promotions = () => {
 
           <Form.Item
             name="type"
-            label="Discount Type"
-            rules={[{ required: true, message: 'Please select discount type' }]}
+            label="Promotion Type"
+            rules={[{ required: true, message: 'Please select promotion type' }]}
           >
-            <Select placeholder="Select discount type">
-              <Option value="percentage">Percentage (%)</Option>
-              <Option value="fixed">Fixed Amount ($)</Option>
+            <Select 
+              placeholder="Select promotion type"
+              onChange={(value) => {
+                if (value === 'Product' && products.length === 0) {
+                  fetchProducts();
+                }
+              }}
+            >
+              <Option value="Product">Product</Option>
+              <Option value="Order">Order</Option>
             </Select>
           </Form.Item>
 
+          {/* Product selection when type is Product */}
           <Form.Item
-            name="value"
-            label="Discount Value"
-            rules={[{ required: true, message: 'Please enter discount value' }]}
+            noStyle
+            shouldUpdate={(prevValues, currentValues) => prevValues.type !== currentValues.type}
+          >
+            {({ getFieldValue }) => 
+              getFieldValue('type') === 'Product' ? (
+                <Form.Item
+                  label="Select Products"
+                  rules={[{ required: true, message: 'Please select at least one product' }]}
+                >
+                  <Select
+                    showSearch
+                    mode="multiple"
+                    allowClear
+                    placeholder="Select products"
+                    loading={productsLoading}
+                    value={selectedProductIds}
+                    onChange={handleProductSelection}
+                    style={{ width: '100%' }}
+                    optionFilterProp="children"
+                    optionLabelProp="label"
+                    virtual={false} // Disable virtual scrolling to prevent display issues
+                    maxTagCount={3} // Show only first 3 tags and "+X" for the rest
+                    listHeight={300} // Increase the dropdown height
+                  >
+                    {products.map(product => (
+                      <Option 
+                        key={product.id} 
+                        value={product.id}
+                        label={product.name} // Add label for showing in selection
+                      >
+                        <Flex justifyContent="space-between" gap={8} align='center' style={{ height: 50 }}>
+                          <Image src={product.imageUrl} width={50} height={50} preview={false} />
+                          <Typography.Text>{product.name}</Typography.Text>
+                        </Flex>
+                      </Option>
+                    ))}
+                  </Select>
+                </Form.Item>
+              ) : null
+            }
+          </Form.Item>
+
+          <Form.Item
+            name="discountPercentage"
+            label="Discount Percentage"
+            rules={[{ required: true, message: 'Please enter discount percentage' }]}
           >
             <InputNumber
               min={0}
-              placeholder="Enter discount value"
+              max={100}
+              placeholder="Enter discount percentage"
               style={{ width: '100%' }}
+              formatter={value => `${value}%`}
+              parser={value => value.replace('%', '')}
             />
           </Form.Item>
 
           <Form.Item
-            name="minPurchase"
-            label="Minimum Purchase Amount"
-            rules={[{ required: true, message: 'Please enter minimum purchase amount' }]}
+            name="customerLevel"
+            label="Customer Level"
+            rules={[{ required: true, message: 'Please select customer level' }]}
           >
-            <InputNumber
-              min={0}
-              placeholder="Enter minimum purchase amount"
-              style={{ width: '100%' }}
-              formatter={value => `$ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
-              parser={value => value.replace(/\$\s?|(,*)/g, '')}
-            />
-          </Form.Item>
-
-          <Form.Item
-            name="maxDiscount"
-            label="Maximum Discount Amount"
-          >
-            <InputNumber
-              min={0}
-              placeholder="Enter maximum discount amount"
-              style={{ width: '100%' }}
-              formatter={value => `$ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
-              parser={value => value.replace(/\$\s?|(,*)/g, '')}
-            />
+            <Select placeholder="Select customer level">
+              <Option value="Bronze">Bronze</Option>
+              <Option value="Silver">Silver</Option>
+              <Option value="Gold">Gold</Option>
+              <Option value="Platinum">Platinum</Option>
+            </Select>
           </Form.Item>
 
           <Form.Item
@@ -387,10 +423,29 @@ const Promotions = () => {
           </Form.Item>
 
           <Form.Item
+            name="ussage"
+            label="Usage Limit"
+            rules={[{ required: true, message: 'Please enter usage limit' }]}
+          >
+            <InputNumber
+              min={1}
+              placeholder="Enter usage limit"
+              style={{ width: '100%' }}
+            />
+          </Form.Item>
+
+          <Form.Item
             name="description"
             label="Description"
           >
             <Input.TextArea rows={4} placeholder="Enter promotion description" />
+          </Form.Item>
+
+          <Form.Item
+            name="isActive"
+            valuePropName="checked"
+          >
+            <Switch checkedChildren="Active" unCheckedChildren="Inactive" />
           </Form.Item>
 
           {modalType !== 'view' && (

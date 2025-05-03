@@ -70,11 +70,17 @@ export const attributeApiRequest = {
 
 // Promotion endpoints
 export const promotionApiRequest = {
-  getAllPromotions: () => apiInstance.get('/promotions'),
-  getPromotionById: (id) => apiInstance.get(`/promotions/${id}`),
-  createPromotion: (data) => apiInstance.post('/promotions', data),
-  updatePromotion: (id, data) => apiInstance.put(`/promotions/${id}`, data),
-  deletePromotion: (id) => apiInstance.delete(`/promotions/${id}`),
+  getAllPromotions: ({ page = 1, pageSize = 10, search = '' } = {}) => {
+    const offset = (page - 1) * pageSize;
+    let url = `/Promotion?offset=${offset}&limit=${pageSize}`;
+    if (search) url += `&search=${encodeURIComponent(search)}`;
+    return apiInstance.get(url);
+  },
+  getPromotionById: (id) => apiInstance.get(`/promotion/${id}`),
+  getUsablePromotionsByUserId: (userId) => apiInstance.get(`/Promotion/usable/${userId}`),
+  createPromotion: (data) => apiInstance.post('/Promotion', data),
+  updatePromotion: (id, data) => apiInstance.put(`/Promotion/${id}`, data),
+  deletePromotion: (id) => apiInstance.delete(`/Promotion/${id}`),
 };
 
 // Banner endpoints
@@ -157,6 +163,7 @@ export const shippingApiRequest = {
   getCities: () => apiInstance.get('/Shipping/get-cities'),
   getDistrictsByCityId: (cityId) => apiInstance.get(`/Shipping/get-districts/${cityId}`),
   getWardsByDistrictId: (districtId) => apiInstance.get(`/Shipping/get-wards/${districtId}`),
+  getFormattedAddress: (id) => apiInstance.get(`/Shipping/get-formatted-address/${id}`),
 };
 
 export const paymentApiRequest = {

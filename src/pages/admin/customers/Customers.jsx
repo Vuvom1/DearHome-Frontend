@@ -268,7 +268,7 @@ const Customers = () => {
         {selectedCustomer && (
           <Descriptions bordered column={1}>
             <Descriptions.Item label="Customer ID">{selectedCustomer.id}</Descriptions.Item>
-            <Descriptions.Item label="Name">{`${selectedCustomer.firstName} ${selectedCustomer.lastName}`}</Descriptions.Item>
+            <Descriptions.Item label="Name">{`${selectedCustomer.name}`}</Descriptions.Item>
             <Descriptions.Item label="Email">{selectedCustomer.email}</Descriptions.Item>
             <Descriptions.Item label="Phone">{selectedCustomer.phoneNumber}</Descriptions.Item>
             <Descriptions.Item label="Address">{selectedCustomer.address}</Descriptions.Item>
@@ -276,7 +276,7 @@ const Customers = () => {
               {new Date(selectedCustomer.registrationDate).toLocaleDateString()}
             </Descriptions.Item>
             <Descriptions.Item label="Status">
-              <Tag color={selectedCustomer.status === 'active' ? 'green' : 'red'}>
+              <Tag color={selectedCustomer.isActive === true ? 'green' : 'red'}>
                 {selectedCustomer.status === 'isActive' ? 'Active' : 'Inactive'}
               </Tag>
             </Descriptions.Item>
