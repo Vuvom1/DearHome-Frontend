@@ -46,6 +46,8 @@ export const URLS = {
         CONTACT: '/contact',
         INTERIOR_DESIGN: '/interior-design',
         VERIFY_PAYMENT: '/verify-payment',
+        ORDER_TRACKING: '/order-tracking',
+        REVIEW_ORDER: (id) => `/review-order/${id}`,
     }
 };
 

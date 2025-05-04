@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Table, Tag, Button, Space, Card, Typography, Dropdown, Menu, message, Modal, Descriptions, Badge, Input, Image } from 'antd';
 import { DownOutlined, EyeOutlined, CheckOutlined, CloseOutlined, PrinterOutlined, PlusOutlined, ReloadOutlined, SettingOutlined } from '@ant-design/icons';
-import { orderApiRequest } from '../../../api/ApiRequests';
+import { orderApiRequest, shippingApiRequest } from '../../../api/ApiRequests';
+import PagedData from '../../../utils/PagedData';
 
 const { Title } = Typography;
 
@@ -10,34 +11,65 @@ const Order = () => {
   const [loading, setLoading] = useState(false);
   const [viewModalVisible, setViewModalVisible] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState(null);
-  const [offSet, setOffSet] = useState(0);
-  const [limit, setLimit] = useState(10);
-  const [total, setTotal] = useState(0);
+  const [pagination, setPagination] = useState({ current: 1, pageSize: 10 });
+  const [searchText, setSearchText] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
 
   useEffect(() => {
     fetchOrders();
-  }, [offSet, limit]);
+  }, [pagination.current, pagination.pageSize, statusFilter]);
 
+  const fetchFormattedAddress = async (addressId) => {
+      await shippingApiRequest.getFormattedAddress(addressId)
+        .then((response) => {
+          const formattedAddress = response.data;
+          console.log('Formatted Address:', formattedAddress);
+          setSelectedOrder((prevOrder) => ({
+            ...prevOrder,
+            address: {
+              ...prevOrder.address,
+              street: formattedAddress.street,
+              city: formattedAddress.city.name,
+              district: formattedAddress.district.name,
+              postalCode: formattedAddress.postalCode,
+              country: formattedAddress.country,
+            },
+          }));
+          console.log('Formatted Address:', formattedAddress);
+        })
+        .catch((error) => {
+          console.error('Error fetching address:', error);
+          message.error('Failed to fetch address');
+        });
+  };
+ 
   const fetchOrders = async () => {
     setLoading(true);
-    await orderApiRequest.getAllOrders(offSet, limit)
-      .then((response) => {
-        setOrders(response.data.$values);
-        // Assuming the API returns total count somewhere, adjust as needed
-        setTotal(response.data.$values.length > 0 ? response.data.$values.length : 0);
-      })
-      .catch((error) => {
-        console.error('Error fetching orders:', error);
-        message.error('Failed to fetch orders');
-      }).finally(() => {
-        setLoading(false);
+    const offset = (pagination.current - 1) * pagination.pageSize;
+    
+    try {
+      let response;
+      if (statusFilter === 'all') {
+        response = await orderApiRequest.getAllOrders(offset, pagination.pageSize, searchText);
+      } 
+      
+      const pagedData = PagedData.fromResponse(response);
+      setOrders(pagedData.items);
+      setPagination({
+        ...pagination,
+        ...pagedData.getPaginationConfig()
       });
+    } catch (error) {
+      console.error('Error fetching orders:', error);
+      message.error('Failed to fetch orders');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleStatusChange = async (orderId, newStatus) => {
     try {
       await orderApiRequest.updateOrderStatus(orderId, newStatus);
-
       message.success(`Order status updated to ${newStatus}`);
       fetchOrders();
     } catch (error) {
@@ -48,7 +80,7 @@ const Order = () => {
 
   const viewOrderDetails = (order) => {
     setSelectedOrder(order);
-    console.log('Selected Order:', order);
+    fetchFormattedAddress(order.addressId);
     setViewModalVisible(true);
   };
 
@@ -57,18 +89,38 @@ const Order = () => {
     // Implement print functionality
   };
 
+  const handleSearch = (value) => {
+    setSearchText(value);
+    // Implement search functionality - you may need to add a search API endpoint
+    setPagination({
+      ...pagination,
+      current: 1 // Reset to first page when search changes
+    });
+    fetchOrders();
+  };
+
+  const handleStatusFilterChange = (status) => {
+    setStatusFilter(status);
+    setPagination({
+      ...pagination,
+      current: 1 // Reset to first page when filter changes
+    });
+  };
+
   const getStatusColor = (status) => {
     switch (status.toLowerCase()) {
-      case 'waitforpayment':
+      case 'placed':
         return 'gold';
-      case 'paid':
-        return 'purple';
+      case 'waitforpayment':
+        return 'orange';
       case 'processing':
-        return 'blue';
-      case 'shipped':
+        return 'yellow';
+      case 'shipping':
         return 'cyan';
       case 'delivered':
         return 'green';
+      case 'completed':
+        return 'blue';
       case 'cancelled':
         return 'red';
       default:
@@ -180,7 +232,11 @@ const Order = () => {
   ];
 
   const handleTableChange = (pagination) => {
-    setOffSet((pagination.current - 1) * limit);
+    setPagination({
+      ...pagination,
+      current: pagination.current,
+      pageSize: pagination.pageSize,
+    });
   };
 
   return (
@@ -199,16 +255,19 @@ const Order = () => {
             placeholder="Search orders"
             style={{ width: 250, marginRight: 8 }}
             allowClear
+            onSearch={handleSearch}
           />
           <Dropdown
             overlay={
-              <Menu>
+              <Menu onClick={(e) => handleStatusFilterChange(e.key)}>
                 <Menu.Item key="all">All Status</Menu.Item>
-                <Menu.Item key="waitforpayment">Wait for Payment</Menu.Item>
-                <Menu.Item key="processing">Processing</Menu.Item>
-                <Menu.Item key="shipped">Shipped</Menu.Item>
-                <Menu.Item key="delivered">Delivered</Menu.Item>
-                <Menu.Item key="cancelled">Cancelled</Menu.Item>
+                <Menu.Item key="Placed">Wait for Payment</Menu.Item>
+                <Menu.Item key="WaitForPayment">Placed</Menu.Item>
+                <Menu.Item key="Processing">Processing</Menu.Item>
+                <Menu.Item key="Shipping">Shipped</Menu.Item>
+                <Menu.Item key="Delivered">Delivered</Menu.Item>
+                <Menu.Item key="Cmpleted">Completed</Menu.Item>
+                <Menu.Item key="Cancelled">Cancelled</Menu.Item>
               </Menu>
             }
           >
@@ -242,9 +301,9 @@ const Order = () => {
           rowKey="id"
           loading={loading}
           pagination={{
-            pageSize: limit,
-            total: total,
-            onChange: (page) => setOffSet((page - 1) * limit),
+            current: pagination.current,
+            pageSize: pagination.pageSize,
+            total: pagination.total,
           }}
           onChange={handleTableChange}
         />
@@ -291,7 +350,7 @@ const Order = () => {
 
             <Title level={4} style={{ marginTop: 20 }}>Shipping Address</Title>
             <Descriptions bordered>
-              <Descriptions.Item label="Address" span={3}>
+              <Descriptions.Item label="Address" span={2}>
                 {selectedOrder.address.street}
               </Descriptions.Item>
               <Descriptions.Item label="City">

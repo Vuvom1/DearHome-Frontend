@@ -12,7 +12,6 @@ const { Search } = Input;
 const Products = () => {
     const [searchTerm, setSearchTerm] = useState('');
     const [categories, setCategories] = useState([]);
-    const [category, setCategory] = useState('all');
     const [products, setProducts] = useState([]);
     const [hotProducts, setHotProducts] = useState([]);
     const [loading, setLoading] = useState(false);
@@ -58,9 +57,18 @@ const Products = () => {
         }
     };
 
+    const fetchHotProducts = async () => {
+        await ProductApiRequest.getTopSaleProducts(10).then((response) => {
+            setHotProducts(response.data.$values);
+        }).catch((error) => {
+            console.error("Error fetching hot products:", error);
+        });
+    };
+
     useEffect(() => {
         fetchCategories();
         fetchProducts();
+        fetchHotProducts();
     }, []);
 
     const handlePageChange = (page, pageSize) => {

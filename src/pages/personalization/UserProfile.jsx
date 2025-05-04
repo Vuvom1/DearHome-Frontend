@@ -167,15 +167,14 @@ const UserProfile = () => {
     };
 
     const handleLogout = () => {
-        dispatch(logoutUser());
+        dispatch(logoutUser())
+        navigate(URLS.CUSTOMER.HOME)
     }
 
 
     const handleAddressChange = (index, field, value) => {
             const newAddresses = [...addresses];
             newAddresses[index][field] = value;
-
-            console.log(value)
 
             // If city is changed, fetch districts for that city
             if (field === 'city') {

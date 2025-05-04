@@ -114,7 +114,7 @@ const ProductCard = ({ product }) => {
         title={product.name.toUpperCase()}
         description={
           <Flex vertical>
-            <Text type="secondary">{product?.category.name}</Text>
+            <Text type="secondary">{product?.category?.name}</Text>
             <Text strong style={{ fontSize: '16px' }}>
               {product.price.toLocaleString('vi-VN')} ₫
             </Text>

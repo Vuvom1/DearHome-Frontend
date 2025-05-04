@@ -42,8 +42,12 @@ export const logoutUser = createAsyncThunk(
   'Auth/logout',
   async (_, { rejectWithValue }) => {
     try {
-      const response = await authApiRequest.logout();
+      var token = localStorage.getItem('token');
+      if (token) {
+      const response = await authApiRequest.logoutUser(token);
       return response.data;
+      }
+      
     } catch (err) {
       return rejectWithValue(err.response?.data || { message: 'Logout failed' });
     }

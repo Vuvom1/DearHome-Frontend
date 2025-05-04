@@ -78,7 +78,7 @@ const CustomerLayout = ({ children }) => {
                                             onClick={() => navigate(URLS.CUSTOMER.PROFILE)}
                                             style={{ cursor: 'pointer' }}
                                         >
-                                            <Avatar src={user.certthumbprint} />
+                                            <Avatar src={user.imageUrl} />
                                             <Typography.Text>{user.unique_name}</Typography.Text>
                                         </Flex>
                                     </Flex>
@@ -141,7 +141,7 @@ const CustomerLayout = ({ children }) => {
                 background: '#f0f0f0',
                 padding: screens.md ? '24px 50px' : '12px 20px'
             }}>
-                Dear Home ©{new Date().getFullYear()} Created with ❤️
+                Dear Home ©{new Date().getFullYear()} Created with by Dear Home
             </Footer>
         </Layout>
     );

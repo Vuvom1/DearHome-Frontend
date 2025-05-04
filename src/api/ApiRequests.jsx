@@ -11,6 +11,7 @@ export const authApiRequest = {
   sendVerificationCode: (email) => apiInstance.post('/User/send-verification-code', { email }),
   getUser: (id) => apiInstance.get(`/User/${id}`),
   updateUser: (data) => apiInstance.put(`/User`, data),
+  logoutUser: (token) => apiInstance.post('/User/logout', token),
 };
 
 export const userApiRequest = {
@@ -52,8 +53,10 @@ export const inventoryApiRequest = {
 
 // Order endpoints
 export const orderApiRequest = {
-  getAllOrders: (offSet, limit) => apiInstance.get(`/Order?offSet=${offSet}&limit=${limit}`),
+  getAllOrders: (pageNumber, pageSize, search) => apiInstance.get(`/Order?offSet=${pageNumber}&limit=${pageSize}&searchString=${encodeURIComponent(search)}`),
   getOrderById: (id) => apiInstance.get(`/Order/${id}`),
+  getOrdersByUserId: (userId, offSet, limit) => apiInstance.get(`/Order/user/${userId}?offSet=${offSet}&limit=${limit}`),
+  getOrdersByUserIdAndStatus: (userId, status, offSet, limit) => apiInstance.get(`/Order/user-and-status/${userId}?status=${status}&offSet=${offSet}&limit=${limit}`),
   createOrder: (data, returnUrl) => {
     return apiInstance.post(`/Order/create?returnUrl=${returnUrl}`, data);
   },
@@ -143,6 +146,7 @@ export const PlacementApiRequest = {
 
 export const ProductApiRequest = {
   getAllProducts: (offSet = 0, limit = 10) => apiInstance.get(`/Product?offSet=${offSet}&limit=${limit}`),
+  getTopSaleProducts: (count) => apiInstance.get(`/Product/top-sales?count=${count}`),
   getProductsByCategoryId: (id, offSet = 0, limit = 10) => apiInstance.get(`/Product/get-by-category/${id}?offSet=${offSet}&limit=${limit}`),
   getProductById: (id) => apiInstance.get(`/Product/${id}`),
   createProduct: (data) => apiInstance.post('/Product', data),
@@ -171,3 +175,11 @@ export const paymentApiRequest = {
   verifyPayment: (data) => apiInstance.post('/Payment/verify-payment', data),
 };
 
+export const reviewApiRequest = {
+  getAllReviews: (pageNumber, pageSize, search) => apiInstance.get(`/Review?offSet=${pageNumber}&limit=${pageSize}&searchString=${encodeURIComponent(search)}`),
+  getReviewById: (id) => apiInstance.get(`/Review/${id}`),
+  getReviewsByProductId: (productId, page, pageSize) => apiInstance.get(`/Review/product/${productId}?page=${page}&pageSize=${pageSize}`),
+  createReview: (data) => apiInstance.post('/Review', data),
+  updateReview: (id, data) => apiInstance.put(`/Review/${id}`, data),
+  deleteReview: (id) => apiInstance.delete(`/Review/${id}`),
+};

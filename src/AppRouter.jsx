@@ -23,6 +23,8 @@ import InteriorDesign from './pages/customer/InteriorDesign';
 import EditGoodReceivedNote from './pages/admin/inventory/EditGoodReceivedNote';
 import UserProfile from './pages/personalization/UserProfile';
 import VerifyPayment from './pages/customer/VerifyPayment';
+import OrderTracking from './pages/customer/OrderTracking';
+import ReviewOrder from './pages/customer/ReviewOrder';
 
 const AppRouter = () => {
   return (
@@ -39,6 +41,8 @@ const AppRouter = () => {
             <Route path={URLS.CUSTOMER.CATEGORY_DETAIL(':slug')} element={<CategoryDetails />} />
             <Route path={URLS.CUSTOMER.INTERIOR_DESIGN} element={<InteriorDesign />} />
             <Route path={URLS.CUSTOMER.VERIFY_PAYMENT} element={<VerifyPayment />} />
+            <Route path={URLS.CUSTOMER.ORDER_TRACKING} element={<OrderTracking/>} />
+            <Route path={URLS.CUSTOMER.REVIEW_ORDER(':id')} element={<ReviewOrder/>} />
         </Route>
         <Route path={URLS.AUTH.LOGIN} element={<Auth />}>
         </Route>

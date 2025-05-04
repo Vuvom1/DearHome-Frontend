@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { Typography, Row, Col, Image, Button, Card, Flex, InputNumber, Tabs, Select, Rate, Progress, Pagination, Skeleton, Radio } from 'antd';
+import { Typography, Row, Col, Image, Button, Card, Flex, InputNumber, Tabs, Select, Rate, Progress, Pagination, Skeleton, Radio, Empty, Avatar } from 'antd';
 import { ShoppingCartOutlined, HeartOutlined, HeartFilled, UpOutlined, DownOutlined, PlusOutlined, MinusOutlined, StarFilled, DeleteOutlined } from '@ant-design/icons';
 import { useMediaQuery } from 'react-responsive';
 import ReviewCard from '../../components/ReviewCard';
 import ProductCard from '../../components/ProductCard';
-import { ProductApiRequest } from '../../api/ApiRequests';
+import { ProductApiRequest, reviewApiRequest } from '../../api/ApiRequests';
 import AttributeTypes from '../../constants/AttributeTypes'
 import { addToCart, updateQuantity, removeFromCart } from '../../store/actions/CartAction';
 import { useDispatch, useSelector } from 'react-redux';
@@ -22,38 +22,68 @@ const ProductDetails = () => {
     const [selectedAttributes, setSelectedAttributes] = useState({});
     const [mainImage, setMainImage] = useState('');
     const isMobile = useMediaQuery({ maxWidth: 768 });
+    
+    // Reviews state
+    const [reviewsData, setReviewsData] = useState(null);
+    const [currentPage, setCurrentPage] = useState(1);
+    const [pageSize, setPageSize] = useState(10);
+    const [reviewsLoading, setReviewsLoading] = useState(false);
 
     const itemInCart = useSelector(state => state.cart.items.filter(item => item.item.id === selectedVariant?.id ));
     var quantityInCart = itemInCart.length > 0 ? itemInCart[0].quantity : 0;
 
     const fetchProduct = async () => {
-        await ProductApiRequest.getProductById(id)
-            .then(res => {
-                setProduct(res.data);
-                setMainImage(res.data.imageUrl);
-                // Set the first variant as default selected variant
-                if (res.data.variants && res.data.variants.$values && res.data.variants.$values.length > 0) {
-                    setSelectedVariant(res.data.variants.$values[0]);
+        try {
+            setLoading(true);
+            const res = await ProductApiRequest.getProductById(id);
+            setProduct(res.data);
+            setMainImage(res.data.imageUrl);
+            // Set the first variant as default selected variant
+            if (res.data.variants && res.data.variants.$values && res.data.variants.$values.length > 0) {
+                setSelectedVariant(res.data.variants.$values[0]);
 
-                    // Initialize selected attributes from variant attributes
-                    const initialAttributes = {};
-                    if (res.data.variants.$values[0].variantAttributes &&
-                        res.data.variants.$values[0].variantAttributes.$values) {
-                        res.data.variants.$values[0].variantAttributes.$values.forEach(attr => {
-                            initialAttributes[attr.attributeValue.attributeId] = attr.attributeValue.value;
-                        });
-                    }
-                    setSelectedAttributes(initialAttributes);
+                // Initialize selected attributes from variant attributes
+                const initialAttributes = {};
+                if (res.data.variants.$values[0].variantAttributes &&
+                    res.data.variants.$values[0].variantAttributes.$values) {
+                    res.data.variants.$values[0].variantAttributes.$values.forEach(attr => {
+                        initialAttributes[attr.attributeValue.attributeId] = attr.attributeValue.value;
+                    });
                 }
-            })
-            .catch(err => {
-                console.error(err);
-            });
-    }
+                setSelectedAttributes(initialAttributes);
+            }
+            
+            // Fetch reviews after product is loaded
+            fetchReviews(id, 1, pageSize);
+            
+            setLoading(false);
+        } catch (err) {
+            console.error('Error fetching product:', err);
+            setLoading(false);
+        }
+    };
+    
+    const fetchReviews = async (productId, page, size) => {
+        try {
+            setReviewsLoading(true);
+            const response = await reviewApiRequest.getReviewsByProductId(productId, page, size);
+            setReviewsData(response.data);
+            setReviewsLoading(false);
+        } catch (error) {
+            console.error('Error fetching reviews:', error);
+            setReviewsLoading(false);
+        }
+    };
 
     useEffect(() => {
         fetchProduct();
     }, [id]);
+    
+    // Handle reviews pagination change
+    const handleReviewPageChange = (page) => {
+        setCurrentPage(page);
+        fetchReviews(id, page, pageSize);
+    };
 
     // Find matching variant based on selected attributes
     useEffect(() => {
@@ -199,7 +229,7 @@ const ProductDetails = () => {
                                         className="image-scroll"
                                         style={{
                                             maxHeight: isMobile ? 'auto' : '300px',
-                                            overflowY: isMobile ? 'visible' : 'auto',
+                                            overflowY: 'visible',
                                             scrollBehavior: 'smooth',
                                             padding: '30px 0'
                                         }}
@@ -412,52 +442,162 @@ const ProductDetails = () => {
                                 <Flex vertical gap={16} align="center">
                                     <Row style={{ width: '100%' }}>
                                         <Col span={12} style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-                                            <Typography.Title>4.5/5</Typography.Title>
-                                            <Rate disabled allowHalf value={4.5} style={{ margin: '0px 10px' }} />
-                                            <Typography.Text>100+ reviews</Typography.Text>
+                                            {reviewsLoading ? (
+                                                <Skeleton active paragraph={{ rows: 2 }} />
+                                            ) : reviewsData ? (
+                                                <>
+                                                    <Typography.Title>{reviewsData.averageRating.toFixed(1)}/5</Typography.Title>
+                                                    <Rate disabled allowHalf value={reviewsData.averageRating} style={{ margin: '0px 10px' }} />
+                                                    <Typography.Text>{reviewsData.totalReviews} {reviewsData.totalReviews === 1 ? 'review' : 'reviews'}</Typography.Text>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <Typography.Title>0/5</Typography.Title>
+                                                    <Rate disabled allowHalf value={0} style={{ margin: '0px 10px' }} />
+                                                    <Typography.Text>No reviews yet</Typography.Text>
+                                                </>
+                                            )}
                                         </Col>
                                         <Col span={12} style={{ textAlign: 'center', alignItems: 'center', justifyContent: 'center' }}>
-                                            <Flex gap={8} align="center">
-                                                <Typography.Text>5</Typography.Text>
-                                                <StarFilled style={{ color: '#FFD700' }} />
-                                                <Progress strokeColor="#FFD700" percent={80} format={percent => `${percent}%`} />
-                                            </Flex>
-                                            <Flex gap={8} align="center">
-                                                <Typography.Text>4</Typography.Text>
-                                                <StarFilled style={{ color: '#FFD700' }} />
-                                                <Progress strokeColor="#FFD700" percent={80} format={percent => `${percent}%`} />
-                                            </Flex>
-                                            <Flex gap={8} align="center">
-                                                <Typography.Text>3</Typography.Text>
-                                                <StarFilled style={{ color: '#FFD700' }} />
-                                                <Progress strokeColor="#FFD700" percent={80} format={percent => `${percent}%`} />
-                                            </Flex>
-                                            <Flex gap={8} align="center">
-                                                <Typography.Text>2</Typography.Text>
-                                                <StarFilled style={{ color: '#FFD700' }} />
-                                                <Progress strokeColor="#FFD700" percent={80} format={percent => `${percent}%`} />
-                                            </Flex>
-                                            <Flex gap={8} align="center">
-                                                <Typography.Text>1</Typography.Text>
-                                                <StarFilled style={{ color: '#FFD700' }} />
-                                                <Progress strokeColor="#FFD700" percent={80} format={percent => `${percent}%`} />
-                                            </Flex>
+                                            {reviewsLoading ? (
+                                                <Skeleton active paragraph={{ rows: 5 }} />
+                                            ) : reviewsData ? (
+                                                <>
+                                                    {[5, 4, 3, 2, 1].map(rating => {
+                                                        const count = reviewsData.ratingCounts[rating] || 0;
+                                                        const percent = reviewsData.totalReviews > 0 
+                                                            ? (count / reviewsData.totalReviews) * 100 
+                                                            : 0;
+                                                        
+                                                        return (
+                                                            <Flex key={rating} gap={8} align="center">
+                                                                <Typography.Text>{rating}</Typography.Text>
+                                                                <StarFilled style={{ color: '#FFD700' }} />
+                                                                <Progress 
+                                                                    strokeColor="#FFD700" 
+                                                                    percent={percent} 
+                                                                    format={percent => `${count}`} 
+                                                                />
+                                                            </Flex>
+                                                        );
+                                                    })}
+                                                </>
+                                            ) : (
+                                                <>
+                                                    {[5, 4, 3, 2, 1].map(rating => (
+                                                        <Flex key={rating} gap={8} align="center">
+                                                            <Typography.Text>{rating}</Typography.Text>
+                                                            <StarFilled style={{ color: '#FFD700' }} />
+                                                            <Progress 
+                                                                strokeColor="#FFD700" 
+                                                                percent={0} 
+                                                                format={() => '0'} 
+                                                            />
+                                                        </Flex>
+                                                    ))}
+                                                </>
+                                            )}
                                         </Col>
                                     </Row>
                                     <Row style={{ width: '100%' }}>
                                         <Col span={24}>
-                                            <ReviewCard review={review} />
-                                            <ReviewCard review={review} />
-                                            <Flex justify="center" style={{ marginTop: 16 }}>
-                                                <Pagination
-                                                    total={50}
-                                                    pageSize={10}
-                                                    showSizeChanger={false}
-                                                    onChange={(page) => {
-                                                        // Implement pagination logic here
-                                                    }}
-                                                />
-                                            </Flex>
+                                            {reviewsLoading ? (
+                                                <Skeleton active paragraph={{ rows: 4 }} />
+                                            ) : reviewsData && reviewsData.reviews && reviewsData.reviews.data && reviewsData.reviews.data.$values && reviewsData.reviews.data.$values.length > 0 ? (
+                                                <div style={{ width: '100%' }}>
+                                                    {reviewsData.reviews.data.$values.map((review) => (
+                                                        <Card 
+                                                            key={review.id} 
+                                                            style={{ marginBottom: 16 }}
+                                                            border={false}
+                                                            className="review-card"
+                                                            
+                                                        >
+                                                            <Flex align="center" gap={8} style={{ marginTop: 8, marginBottom: 8 }} justify='space-between'>
+                                                                    <Flex align="center" gap={8}>
+                                                                        <Avatar 
+                                                                            size={32} 
+                                                                            src={review.orderDetail?.order?.user?.imageUrl} 
+                                                                            alt="User" 
+                                                                        />
+                                                                        <Text strong>
+                                                                            {review.orderDetail?.order?.user?.name || 'Anonymous'}
+                                                                        </Text>
+                                                                        </Flex>
+                                                                        <Text type="secondary">
+                                                                            {new Date(review.createdAt).toLocaleDateString()}
+                                                                        </Text>
+                                                                    </Flex>
+                                                            <Flex align="start" gap={16}>
+                                                                
+                                                                <div>
+                                                                    {review.orderDetail && review.orderDetail.variant && review.orderDetail.variant.imageUrls && review.orderDetail.variant.imageUrls.$values && review.orderDetail.variant.imageUrls.$values.length > 0 ? (
+                                                                        <Image
+                                                                            src={review.orderDetail.variant.imageUrls.$values[0]}
+                                                                            alt="Product"
+                                                                            width={80}
+                                                                            height={80}
+                                                                            style={{ objectFit: 'cover' }}
+                                                                            preview={false}
+                                                                        />
+                                                                    ) : review.orderDetail && review.orderDetail.variant && review.orderDetail.variant.product && review.orderDetail.variant.product.imageUrl ? (
+                                                                        <Image
+                                                                            src={review.orderDetail.variant.product.imageUrl}
+                                                                            alt="Product"
+                                                                            width={80}
+                                                                            height={80}
+                                                                            style={{ objectFit: 'cover' }}
+                                                                            preview={false}
+                                                                        />
+                                                                    ) : (
+                                                                        <div 
+                                                                            style={{ 
+                                                                                width: 80, 
+                                                                                height: 80, 
+                                                                                background: '#f0f0f0',
+                                                                                display: 'flex',
+                                                                                alignItems: 'center',
+                                                                                justifyContent: 'center'
+                                                                            }}
+                                                                        >
+                                                                            <Text type="secondary">No image</Text>
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                                <Flex vertical style={{ flex: 1 }}>
+                                                                    <Flex justify="space-between" align="center">
+                                                                        <Rate disabled value={review.rating} allowHalf />
+                                                                        
+                                                                    </Flex>
+                                                                    <Paragraph style={{ margin: '8px 0' }}>
+                                                                        {review.reviewText}
+                                                                    </Paragraph>
+                                                                    <div>
+                                                                        {review.orderDetail && review.orderDetail.variant && review.orderDetail.variant.sku && (
+                                                                            <Text type="secondary">
+                                                                                Variant: {review.orderDetail.variant.sku}
+                                                                            </Text>
+                                                                        )}
+                                                                    </div>
+                                                                    
+                                                                </Flex>
+                                                            </Flex>
+                                                        </Card>
+                                                    ))}
+                                                    
+                                                    <Flex justify="center" style={{ marginTop: 16 }}>
+                                                        <Pagination
+                                                            current={reviewsData.reviews.pageNumber}
+                                                            total={reviewsData.reviews.totalRecords}
+                                                            pageSize={reviewsData.reviews.pageSize}
+                                                            showSizeChanger={false}
+                                                            onChange={handleReviewPageChange}
+                                                        />
+                                                    </Flex>
+                                                </div>
+                                            ) : (
+                                                <Empty description="No reviews yet" />
+                                            )}
                                         </Col>
                                     </Row>
                                 </Flex>
